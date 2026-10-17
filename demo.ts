@@ -8,7 +8,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { herramientas } from "./src/tools/proveedor.ts";
+import { herramientas, fechaReferencia } from "./src/tools/proveedor.ts";
 
 const PROJECT_DIR = process.cwd();
 const CASOS_DIR = path.join(PROJECT_DIR, "fixtures", "reto-01", "casos");
@@ -84,6 +84,8 @@ async function main() {
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
     .sort();
+
+  console.log(`Fecha de referencia para vigencias: ${fechaReferencia().toISOString().slice(0, 10)} (fíjala con FECHA_REFERENCIA=AAAA-MM-DD)`);
 
   console.log(`Procesando ${casos.length} casos: ${casos.join(", ")}`);
   for (const caso of casos) {

@@ -47,10 +47,18 @@ export type EventoToolCall = {
   ok: boolean;
 };
 
+// Eventos en vivo para el front (streaming): se emiten mientras el agente trabaja.
+export type EventoEnVivo =
+  | { tipo: "herramienta_inicio"; nombre: string; args: unknown }
+  | { tipo: "herramienta_fin"; nombre: string; args: unknown; resultado: unknown; ok: boolean }
+  | { tipo: "texto_parcial"; texto: string };
+
 export type ResultadoTurno = {
   reply: string;
   toolCalls: EventoToolCall[];
   needsConfirmation: boolean;
+  // Tokens consumidos en este turno (suma de todas las llamadas al modelo).
+  uso: { tokens_entrada: number; tokens_salida: number };
 };
 
 async function ejecutarHerramienta(nombre: string, args: unknown, ctx: { directory: string; sessionId: string }) {
@@ -88,15 +96,18 @@ export function esConfirmacionExplicita(mensaje: string): boolean {
     /^(env[ií]a(lo)?|puedes enviar)/.test(t);
 }
 
-function detectaNecesitaConfirmacion(texto: string): boolean {
+export function detectaNecesitaConfirmacion(texto: string, envioRealizado = false): boolean {
+  // Si en este mismo turno ya se hizo el envío, no hay nada que confirmar.
+  if (envioRealizado) return false;
   const t = texto.toLowerCase();
-  const esPregunta = t.includes("¿") || t.includes("?");
-  const mencionaAccionSensible = /env[ií]|confirm|procedo|adelante/.test(t);
-  // Además de preguntas explícitas ("¿envío?"), el agente a veces cierra con
-  // una instrucción imperativa ("responde 'sí, envía'", "escribe 'confirmo'")
-  // que también deja el turno esperando una confirmación del usuario.
-  const pideRespuestaLiteral = /responde|escribe|confirma(ndo)?\s*["“']|di\s*["“']/.test(t) && mencionaAccionSensible;
-  return (esPregunta && mencionaAccionSensible) || pideRespuestaLiteral;
+  // Solo cuentan las PREGUNTAS ("¿...?") que hablan del envío o la confirmación,
+  // no cualquier "?" del texto (evita falsos positivos tipo "¿necesitas algo más?").
+  const preguntas = t.match(/¿[^?]*\?/g) ?? [];
+  const preguntaSensible = preguntas.some((p) => /env[ií]|confirm|procedo|adelante|firma/.test(p));
+  // El agente a veces cierra con una instrucción imperativa ("responde 'sí, envía'").
+  const pideRespuestaLiteral =
+    /responde|escribe|confirma(ndo)?\s*["“']|di\s*["“']/.test(t) && /env[ií]|confirm/.test(t);
+  return preguntaSensible || pideRespuestaLiteral;
 }
 
 export async function correrTurno(
@@ -104,7 +115,8 @@ export async function correrTurno(
   historial: Mensaje[],
   mensajeUsuario: string,
   directorioProyecto: string,
-  sessionId: string
+  sessionId: string,
+  onEvento?: (e: EventoEnVivo) => void
 ): Promise<{ historialActualizado: Mensaje[]; resultado: ResultadoTurno }> {
   const historialLocal: Mensaje[] = [
     ...historial,
@@ -116,11 +128,14 @@ export async function correrTurno(
 
   const toolCalls: EventoToolCall[] = [];
   let textoFinal = "";
+  const uso = { tokens_entrada: 0, tokens_salida: 0 };
 
   for (let iteracion = 0; iteracion < TOPE_ITERACIONES; iteracion++) {
     const respuesta = await adaptador.enviar(historialLocal, SYSTEM_PROMPT, DEFINICIONES_HERRAMIENTAS);
 
     historialLocal.push({ rol: "assistant", contenido: respuesta.contenido });
+    uso.tokens_entrada += respuesta.uso?.tokens_entrada ?? 0;
+    uso.tokens_salida += respuesta.uso?.tokens_salida ?? 0;
 
     const llamadas = respuesta.contenido.filter(
       (c): c is Extract<ContenidoMensaje, { tipo: "llamada_herramienta" }> => c.tipo === "llamada_herramienta"
@@ -130,6 +145,7 @@ export async function correrTurno(
     );
     if (textos.length > 0) {
       textoFinal = textos.map((t) => t.texto).join("\n");
+      if (llamadas.length > 0) onEvento?.({ tipo: "texto_parcial", texto: textoFinal });
     }
 
     if (llamadas.length === 0) {
@@ -139,6 +155,7 @@ export async function correrTurno(
 
     const resultadosHerramienta: ContenidoMensaje[] = [];
     for (const llamada of llamadas) {
+      onEvento?.({ tipo: "herramienta_inicio", nombre: llamada.nombre, args: llamada.args });
       const resultadoCrudo =
         llamada.nombre === "proveedor_simular_envio" && !envioAutorizado
           ? JSON.stringify({
@@ -156,12 +173,14 @@ export async function correrTurno(
       } catch {
         parseado = { ok: false, error: "respuesta no serializable de la herramienta" };
       }
-      toolCalls.push({
+      const evento: EventoToolCall = {
         nombre: llamada.nombre,
         args: llamada.args,
         resultado: parseado,
         ok: Boolean((parseado as { ok?: boolean })?.ok),
-      });
+      };
+      toolCalls.push(evento);
+      onEvento?.({ tipo: "herramienta_fin", ...evento });
       resultadosHerramienta.push({
         tipo: "resultado_herramienta",
         id_llamada: llamada.id,
@@ -177,10 +196,11 @@ export async function correrTurno(
     }
   }
 
-  const needsConfirmation = detectaNecesitaConfirmacion(textoFinal);
+  const envioRealizado = toolCalls.some((t) => t.nombre === "proveedor_simular_envio" && t.ok);
+  const needsConfirmation = detectaNecesitaConfirmacion(textoFinal, envioRealizado);
 
   return {
     historialActualizado: historialLocal,
-    resultado: { reply: textoFinal, toolCalls, needsConfirmation },
+    resultado: { reply: textoFinal, toolCalls, needsConfirmation, uso },
   };
 }

@@ -103,6 +103,12 @@ type CasoInfo = {
   soportesExigidos: string[];
 };
 
+export function fechaReferencia(): Date {
+  const env = process.env.FECHA_REFERENCIA;
+  if (env && /^\d{4}-\d{2}-\d{2}$/.test(env)) return new Date(env + "T00:00:00Z");
+  return new Date();
+}
+
 // Solo nombres de caso simples (evita rutas tipo "../../").
 export function nombreCasoValido(caso: string): boolean {
   return /^[a-z0-9][a-z0-9-]*$/i.test(caso);
@@ -415,9 +421,14 @@ export const armar_paquete = {
 
       const outDir = path.join(OUT_ROOT(ctx.directory), args.caso);
       const paqueteDir = path.join(outDir, "paquete");
+      // Se rearma desde cero: así no quedan copias de soportes de una corrida
+      // anterior que hoy ya estén vencidos.
+      fs.rmSync(paqueteDir, { recursive: true, force: true });
       fs.mkdirSync(paqueteDir, { recursive: true });
 
-      const hoy = new Date();
+      // Fecha de referencia para vigencias. Por defecto hoy; FECHA_REFERENCIA
+      // (YYYY-MM-DD) permite resultados reproducibles en pruebas y demos.
+      const hoy = fechaReferencia();
       const filasChecklist: string[] = [];
       let bloqueaFirma = false;
 
@@ -428,7 +439,8 @@ export const armar_paquete = {
           bloqueaFirma = true;
           continue;
         }
-        const vencido = soporte.vigencia_hasta ? new Date(soporte.vigencia_hasta) < hoy : false;
+        // La vigencia es inclusiva: el documento vale todo el día "vigencia_hasta".
+        const vencido = soporte.vigencia_hasta ? new Date(soporte.vigencia_hasta + "T23:59:59Z") < hoy : false;
         if (vencido) {
           filasChecklist.push(`- ⚠️ **${tipo}**: vencido (vigente hasta ${soporte.vigencia_hasta}).`);
           bloqueaFirma = true;

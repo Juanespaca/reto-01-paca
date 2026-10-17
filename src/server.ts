@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { AdaptadorAnthropic } from "./llm/anthropic.ts";
-import { correrTurno } from "./agent.ts";
+import { correrTurno, type EventoEnVivo } from "./agent.ts";
 import type { Mensaje } from "./llm/adapter.ts";
 
 const PROJECT_DIR = process.cwd();
@@ -51,9 +51,87 @@ async function servirArchivoEstatico(pathname: string): Promise<Response> {
   return new Response(fs.readFileSync(filePath), { headers: { "content-type": `${tipo}; charset=utf-8` } });
 }
 
+const CASOS_DIR = path.join(PROJECT_DIR, "fixtures", "reto-01", "casos");
+const CASO_VALIDO = /^[a-z0-9][a-z0-9-]*$/i;
+
+function listarCasos() {
+  if (!fs.existsSync(CASOS_DIR)) return [];
+  return fs
+    .readdirSync(CASOS_DIR)
+    .filter((d) => fs.statSync(path.join(CASOS_DIR, d)).isDirectory())
+    .sort()
+    .map((id) => {
+      try {
+        const s = JSON.parse(fs.readFileSync(path.join(CASOS_DIR, id, "solicitud.json"), "utf-8"));
+        const soportes = JSON.parse(fs.readFileSync(path.join(CASOS_DIR, id, "soportes-exigidos.json"), "utf-8"));
+        return { id, pais: s.pais, cliente: s.cliente, formato: s.formato, fecha: s.fecha, asunto: s.asunto, soportes: soportes.length };
+      } catch {
+        return { id };
+      }
+    });
+}
+
+// Lista los archivos generados para un caso (out/<caso>/...), sin el log interno.
+function listarArchivos(caso: string) {
+  const base = path.join(outDir, caso);
+  if (!CASO_VALIDO.test(caso) || !fs.existsSync(base)) return [];
+  const res: Array<{ ruta: string; bytes: number }> = [];
+  const recorrer = (dir: string) => {
+    for (const f of fs.readdirSync(dir)) {
+      const full = path.join(dir, f);
+      if (fs.statSync(full).isDirectory()) recorrer(full);
+      else if (f !== "log.jsonl") res.push({ ruta: path.relative(base, full), bytes: fs.statSync(full).size });
+    }
+  };
+  recorrer(base);
+  return res.sort((a, b) => a.ruta.localeCompare(b.ruta));
+}
+
+const TIPOS: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".md": "text/markdown; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+};
+
+// Ejecuta un turno del agente; comparte validación y tope de tokens entre
+// /api/chat (respuesta única) y /api/chat/stream (eventos en vivo).
+async function prepararTurno(req: Request): Promise<{ error: Response } | { sessionId: string; message: string }> {
+  const body = (await req.json().catch(() => ({}))) as { sessionId?: string; message?: string };
+  if (!body.message || typeof body.message !== "string" || !body.message.trim()) {
+    return { error: json({ ok: false, error: "falta 'message'" }, 400) };
+  }
+  if (body.message.length > 4000) {
+    return { error: json({ ok: false, error: "El mensaje es demasiado largo (máx. 4000 caracteres)." }, 400) };
+  }
+  const sessionId = body.sessionId && typeof body.sessionId === "string" ? body.sessionId : crypto.randomUUID();
+  const usados = tokensUsadosPorSesion.get(sessionId) ?? 0;
+  if (usados >= TOPE_TOKENS_SESION) {
+    return {
+      error: json(
+        { sessionId, reply: "Esta sesión alcanzó su tope de uso del modelo. Inicia una sesión nueva.", toolCalls: [], needsConfirmation: false },
+        429
+      ),
+    };
+  }
+  return { sessionId, message: body.message.trim() };
+}
+
+async function ejecutarTurno(sessionId: string, message: string, onEvento?: (e: EventoEnVivo) => void) {
+  const historial = sesiones.get(sessionId) ?? [];
+  const { historialActualizado, resultado } = await correrTurno(adaptador, historial, message, PROJECT_DIR, sessionId, onEvento);
+  sesiones.set(sessionId, historialActualizado);
+  // Acumula el consumo para el tope de costo por sesión (TOPE_TOKENS_SESION).
+  const total = (tokensUsadosPorSesion.get(sessionId) ?? 0) + resultado.uso.tokens_entrada + resultado.uso.tokens_salida;
+  tokensUsadosPorSesion.set(sessionId, total);
+  return { ...resultado, tokensSesion: total, topeTokensSesion: TOPE_TOKENS_SESION };
+}
+
 const server = Bun.serve({
+  idleTimeout: 120,
   port: PORT,
-  async fetch(req) {
+  async fetch(req): Promise<Response> {
     const url = new URL(req.url);
 
     if (url.pathname === "/api/health" && req.method === "GET") {
@@ -62,36 +140,64 @@ const server = Bun.serve({
 
     if (url.pathname === "/api/chat" && req.method === "POST") {
       try {
-        const body = (await req.json()) as { sessionId?: string; message?: string };
-        if (!body.message || typeof body.message !== "string") {
-          return json({ ok: false, error: "falta 'message'" }, 400);
-        }
-        const sessionId = body.sessionId && typeof body.sessionId === "string" ? body.sessionId : crypto.randomUUID();
-
-        const usados = tokensUsadosPorSesion.get(sessionId) ?? 0;
-        if (usados >= TOPE_TOKENS_SESION) {
-          return json(
-            { sessionId, reply: "Esta sesión alcanzó su tope de uso del modelo. Inicia una sesión nueva.", toolCalls: [], needsConfirmation: false },
-            429
-          );
-        }
-
-        const historial = sesiones.get(sessionId) ?? [];
-        const { historialActualizado, resultado } = await correrTurno(
-          adaptador,
-          historial,
-          body.message,
-          PROJECT_DIR,
-          sessionId
-        );
-        sesiones.set(sessionId, historialActualizado);
-
-        return json({ sessionId, ...resultado });
+        const p = await prepararTurno(req);
+        if ("error" in p) return p.error;
+        const resultado = await ejecutarTurno(p.sessionId, p.message);
+        return json({ sessionId: p.sessionId, ...resultado });
       } catch (e) {
-        const error = e instanceof Error ? e.message : String(e);
-        console.error("Error en /api/chat:", error);
+        console.error("Error en /api/chat:", e instanceof Error ? e.message : e);
         return json({ ok: false, error: "El agente no pudo responder (error con el proveedor del modelo). Intenta de nuevo en un momento." }, 500);
       }
+    }
+
+    // Igual que /api/chat, pero devuelve NDJSON con cada llamada a herramienta
+    // a medida que ocurre, para que el front muestre el progreso en vivo.
+    if (url.pathname === "/api/chat/stream" && req.method === "POST") {
+      const p = await prepararTurno(req);
+      if ("error" in p) return p.error;
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          const enviar = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+          enviar({ tipo: "inicio", sessionId: p.sessionId });
+          try {
+            const resultado = await ejecutarTurno(p.sessionId, p.message, (e) => enviar(e));
+            enviar({ tipo: "fin", sessionId: p.sessionId, ...resultado });
+          } catch (e) {
+            console.error("Error en /api/chat/stream:", e instanceof Error ? e.message : e);
+            enviar({ tipo: "error", error: "El agente no pudo responder (error con el proveedor del modelo). Intenta de nuevo en un momento." });
+          }
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-cache" },
+      });
+    }
+
+    if (url.pathname === "/api/casos" && req.method === "GET") {
+      return json({ ok: true, casos: listarCasos() });
+    }
+
+    // GET /api/archivos/<caso> → lista; GET /api/archivos/<caso>/<ruta> → descarga
+    if (url.pathname.startsWith("/api/archivos/") && req.method === "GET") {
+      const partes = decodeURIComponent(url.pathname.slice("/api/archivos/".length)).split("/").filter(Boolean);
+      const caso = partes.shift() ?? "";
+      if (!CASO_VALIDO.test(caso)) return json({ ok: false, error: "caso inválido" }, 400);
+      if (partes.length === 0) return json({ ok: true, caso, archivos: listarArchivos(caso) });
+      const base = path.join(outDir, caso);
+      const archivo = path.join(base, ...partes);
+      if (!archivo.startsWith(base + path.sep) || path.basename(archivo) === "log.jsonl" || !fs.existsSync(archivo) || fs.statSync(archivo).isDirectory()) {
+        return json({ ok: false, error: "archivo no encontrado" }, 404);
+      }
+      const tipo = TIPOS[path.extname(archivo)] ?? "application/octet-stream";
+      const inline = url.searchParams.get("ver") === "1";
+      return new Response(fs.readFileSync(archivo), {
+        headers: {
+          "content-type": tipo,
+          "content-disposition": `${inline ? "inline" : "attachment"}; filename="${path.basename(archivo)}"`,
+        },
+      });
     }
 
     if (url.pathname.startsWith("/api/sessions/") && req.method === "GET") {

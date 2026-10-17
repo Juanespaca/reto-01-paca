@@ -61,8 +61,17 @@ Implementado en `src/agent.ts::correrTurno`:
    del usuario no es una confirmación explícita y aislada — así la
    regla no depende solo de que el modelo "se porte bien". El backend además
    detecta heurísticamente si la respuesta final contiene una pregunta de
-   confirmación (`detectaNecesitaConfirmacion`) y se lo señala al front con
-   `needsConfirmation`, que resalta un banner.
+   confirmación (`detectaNecesitaConfirmacion`, que solo mira las preguntas
+   "¿…?" sobre envío o firma y se apaga si el envío ya ocurrió en ese turno) y
+   se lo señala al front con `needsConfirmation`, que muestra una tarjeta con
+   botones "Sí, confirmo el envío" / "Revisar antes".
+6. **Eventos en vivo**: `correrTurno` acepta un callback `onEvento` que
+   emite `herramienta_inicio`, `herramienta_fin` y `texto_parcial`.
+   `POST /api/chat/stream` los envía como NDJSON y el front ilumina el
+   pipeline de 5 pasos a medida que el agente trabaja.
+7. **Consumo**: cada respuesta del modelo trae `uso` (tokens de entrada y
+   salida); `correrTurno` los suma y el servidor los acumula por sesión para
+   aplicar `TOPE_TOKENS_SESION`. El front muestra el consumo de la sesión.
 
 ## 4. Elección del modelo
 
@@ -129,7 +138,20 @@ para una fase futura:
 4. **Front en HTML + JS plano, sin framework.** Alternativa descartada:
    React. Se descartó para evitar un paso de build (Vite/webpack) que
    complique el "un comando levanta todo" del requisito no funcional de
-   Arranque, dado que el chat no necesita componentes complejos.
+   Arranque. Aun así el front es interactivo: pipeline en vivo, tarjetas de
+   herramientas, panel de resultado con descargas, confirmación con botones,
+   modo oscuro y diseño responsive.
+
+5. **Streaming NDJSON en vez de WebSockets o SSE.** Alternativa descartada:
+   WebSocket. Un `fetch` con `ReadableStream` basta para empujar eventos del
+   servidor al front en un solo turno, sin protocolo extra ni reconexión;
+   `/api/chat` (respuesta única) se mantiene para clientes simples y pruebas.
+
+6. **Vigencias contra una fecha de referencia configurable.** Por defecto
+   se evalúan contra el día de hoy (lo correcto en producción), pero
+   `FECHA_REFERENCIA` permite fijarla para que demos y pruebas sean
+   reproducibles. La vigencia es inclusiva: un soporte vale todo el día de
+   `vigencia_hasta`.
 
 ## 7. Supuestos
 
@@ -160,8 +182,8 @@ para una fase futura:
 | HU-3 Generar formulario (pdf) | Hecho (P1) | Es un PDF generado, no un AcroForm rellenado (aceptado explícitamente por el PRD). Producción probablemente requiera rellenar el PDF real del cliente. |
 | HU-3 Generar formulario (portal) | Hecho (P2, diseño) | Solo diseño + valores para copiar, como pide el PRD; implementación real queda para una fase posterior (sección 5). |
 | HU-4 Armar paquete para firma | Hecho | Copia de soportes y checklist funcionan; en producción el "paquete" debería ser un adjunto real de correo, no una carpeta local. |
-| HU-4 Confirmación antes de enviar | Hecho | Doble gate (prompt + herramienta); en producción además convendría un gate de UI (botón explícito), no solo lenguaje natural. |
-| HU-5 Manejo de errores | Hecho | Todas las herramientas devuelven `{ ok, data }` / `{ ok: false, error }`, nunca lanzan; probado con caso inexistente y plantilla ausente. |
+| HU-4 Confirmación antes de enviar | Hecho | Triple gate (prompt + herramienta + backend) y botón explícito en la UI. En producción el OK debería quedar firmado con la identidad del usuario (auditoría), no solo en el historial de chat. |
+| HU-5 Manejo de errores | Hecho | Todas las herramientas devuelven `{ ok, data }` / `{ ok: false, error }`, nunca lanzan; probado con caso inexistente, rutas maliciosas (`../`) y argumentos inválidos (ver `tests/reto.test.ts`). |
 
 ## 9. Uso de IA
 
@@ -182,10 +204,10 @@ Se descartaron explícitamente estas sugerencias iniciales:
 - Una base de datos SQLite para sesiones (el PRD la excluye como no-objetivo).
 
 El candidato (Juan Esteban Paca) puede explicar cada archivo y cada
-decisión de este documento; lo que no pudo verificar en vivo fue la llamada
-real a la API de Anthropic con una clave de producción (se validó el
-servidor arrancando y sirviendo `/api/health` y el front, y toda la lógica
-de negocio vía `demo.ts`, que no depende de ninguna clave).
+decisión de este documento. La solución se verificó de punta a punta con la
+API real de Anthropic en el despliegue público (procesar un caso, confirmar
+el envío en un turno aparte y el caso negativo "procésalo y envíalo ya",
+que el backend bloquea), además de `demo.ts` y `bun test`.
 
 ## 10. Riesgos de llevar esto a producción
 
@@ -195,5 +217,14 @@ de negocio vía `demo.ts`, que no depende de ninguna clave).
 | Fuga de datos bancarios en el correo o el chat. | RN2 ya implementada: datos bancarios solo si la plantilla los pide explícitamente, nunca en el borrador de correo. |
 | El usuario "fuerza" un envío sin confirmar (prompt injection, ambigüedad). | Triple gate: el prompt, la herramienta (`confirmado !== true`) y el backend, que solo deja pasar el envío si el agente preguntó en el turno anterior y el usuario confirmó explícitamente en un mensaje aparte. |
 | Clave de API filtrada. | Solo vive en variable de entorno del backend; nunca se expone en `/api/health`, el front ni los logs (`out/log.jsonl` solo registra nombre de herramienta y resumen, no argumentos completos ni la clave). |
-| Gasto descontrolado de la clave por una sesión larga. | Tope de iteraciones por turno (25) y tope de tokens por sesión (`TOPE_TOKENS_SESION`, configurable). |
+| Gasto descontrolado de la clave por una sesión larga. | Tope de iteraciones por turno (25) y tope de tokens por sesión (`TOPE_TOKENS_SESION`, configurable), ambos cubiertos por pruebas. |
 | Repositorio maestro desactualizado. | Fuera del alcance del agente: requiere un dueño del dato y un proceso de actualización periódica, no una solución técnica de este reto. |
+
+## 11. Verificación
+
+| Qué | Cómo | Resultado |
+|---|---|---|
+| Lógica de negocio sin modelo | `bun run demo.ts` | 4 casos procesados; envío sin confirmar rechazado en los 4 |
+| Pruebas automáticas | `bun test` | 52 pruebas: HU-1..HU-5, NIT/RUC/RTN, valores solo del maestro, celdas del xlsx, vigencias, RN2, gate de confirmación con un modelo "desobediente", tope de iteraciones, conteo de tokens y determinismo |
+| Tipos | `bunx tsc --noEmit` | Sin errores en modo estricto |
+| Agente real | Link público con la API de Anthropic | Flujo de 5 pasos, resumen fiel a los fixtures, envío solo tras confirmación en turno aparte, caso negativo bloqueado |

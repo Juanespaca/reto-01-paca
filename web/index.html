@@ -4,186 +4,947 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Agente Registro como Proveedor — Periferia IT Group</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2312804A'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11.5' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
 <style>
-  :root { color-scheme: light; }
+  :root {
+    --bg: #f3f6f4;
+    --surface: #ffffff;
+    --surface-2: #f0f4f2;
+    --surface-3: #e6ede9;
+    --border: #dce5e0;
+    --text: #0f1f18;
+    --muted: #5d6e66;
+    --brand: #12804a;
+    --brand-strong: #0b5a33;
+    --brand-soft: #e2f3e9;
+    --hero: #0d3b2c;
+    --hero-2: #145c40;
+    --warn: #a15c07;
+    --warn-soft: #fff4d6;
+    --warn-border: #f2c868;
+    --danger: #b42318;
+    --danger-soft: #fdecea;
+    --ok: #15803d;
+    --ok-soft: #dcfce7;
+    --info: #1d5bd8;
+    --info-soft: #e5edff;
+    --code-bg: #0e1a15;
+    --code-text: #cfe9da;
+    --shadow: 0 1px 2px rgba(15, 31, 24, .06), 0 8px 24px -12px rgba(15, 31, 24, .18);
+    --radius: 14px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a120e; --surface: #101b16; --surface-2: #15231c; --surface-3: #1b2d24; --border: #24382e;
+      --text: #e5f0ea; --muted: #93a79c; --brand: #3ccf85; --brand-strong: #6fe0a6; --brand-soft: #123524;
+      --hero: #0b2a1f; --hero-2: #10432f; --warn: #f5c35b; --warn-soft: #2e2410; --warn-border: #6b5217;
+      --danger: #ff8a7a; --danger-soft: #34160f; --ok: #4ade80; --ok-soft: #10301d; --info: #8fb2ff; --info-soft: #152241;
+      --code-bg: #08110d; --code-text: #bfe3cf; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.6);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a120e; --surface: #101b16; --surface-2: #15231c; --surface-3: #1b2d24; --border: #24382e;
+    --text: #e5f0ea; --muted: #93a79c; --brand: #3ccf85; --brand-strong: #6fe0a6; --brand-soft: #123524;
+    --hero: #0b2a1f; --hero-2: #10432f; --warn: #f5c35b; --warn-soft: #2e2410; --warn-border: #6b5217;
+    --danger: #ff8a7a; --danger-soft: #34160f; --ok: #4ade80; --ok-soft: #10301d; --info: #8fb2ff; --info-soft: #152241;
+    --code-bg: #08110d; --code-text: #bfe3cf; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
-    margin: 0;
-    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    background: #f4f5f7;
-    color: #1a1a1a;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
   }
-  header {
-    padding: 14px 20px;
-    background: #111827;
-    color: white;
+  button { font: inherit; cursor: pointer; }
+  code, pre, .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  /* ---------- Layout ---------- */
+  .app { display: grid; grid-template-columns: 290px minmax(0, 1fr) 360px; height: 100vh; height: 100dvh; }
+  aside, main { min-height: 0; }
+  .side { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .panel { background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; }
+  main { display: flex; flex-direction: column; min-width: 0; }
+
+  /* ---------- Sidebar ---------- */
+  .brand { padding: 18px 18px 14px; display: flex; gap: 12px; align-items: center; border-bottom: 1px solid var(--border); }
+  .logo { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg, var(--brand), var(--hero-2)); display: grid; place-items: center; color: #fff; flex: none; box-shadow: 0 6px 16px -6px var(--brand); }
+  .brand h1 { font-size: 15px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+  .brand p { margin: 0; font-size: 12px; color: var(--muted); }
+  .side-scroll { flex: 1; overflow-y: auto; padding: 14px; }
+  .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 6px 4px 10px; display: flex; justify-content: space-between; align-items: center; }
+  .caso {
+    width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px; margin-bottom: 10px; display: block; color: inherit; transition: border-color .15s, transform .15s, box-shadow .15s; position: relative;
   }
-  header h1 { font-size: 16px; margin: 0; }
-  header p { font-size: 12px; margin: 2px 0 0; color: #9ca3af; }
-  #chat {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
+  .caso:hover { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--shadow); }
+  .caso.activo { border-color: var(--brand); background: var(--brand-soft); }
+  .caso-top { display: flex; align-items: center; gap: 10px; }
+  .flag { width: 26px; height: 18px; border-radius: 4px; overflow: hidden; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.08); }
+  .caso-nombre { font-weight: 700; font-size: 13px; line-height: 1.3; }
+  .caso-id { font-size: 11px; color: var(--muted); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
+  .chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+  .chip.fmt-xlsx { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
+  .chip.fmt-pdf { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+  .chip.fmt-portal { color: var(--info); background: var(--info-soft); border-color: transparent; }
+  .caso-estado { position: absolute; top: 10px; right: 10px; width: 9px; height: 9px; border-radius: 50%; background: var(--surface-3); }
+  .caso-estado.listo { background: var(--ok); }
+  .caso-estado.bloqueado { background: var(--warn); }
+  .caso-estado.enviado { background: var(--info); }
+  .caso-acciones { display: flex; gap: 6px; margin-top: 10px; }
+  .mini { font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+  .mini.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .mini:hover { filter: brightness(1.05); }
+  .mini:disabled { opacity: .5; cursor: not-allowed; }
+  .quick { display: grid; gap: 8px; }
+  .quick button { text-align: left; border: 1px dashed var(--border); background: transparent; color: var(--text); border-radius: 10px; padding: 9px 11px; font-size: 12.5px; display: flex; gap: 8px; align-items: center; }
+  .quick button:hover { border-color: var(--brand); background: var(--brand-soft); }
+  .quick svg { color: var(--brand); flex: none; }
+  .side-foot { border-top: 1px solid var(--border); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); flex: none; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+  .dot.err { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+  .foot-row { display: flex; gap: 8px; }
+  .uso .uso-row { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+  .uso .uso-row b { color: var(--text); font-weight: 600; }
+  .uso .bar { margin-top: 5px; height: 6px; }
+  .ghost { flex: 1; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 9px; padding: 8px; font-size: 12.5px; font-weight: 600; display: inline-flex; gap: 6px; justify-content: center; align-items: center; }
+  .ghost:hover { border-color: var(--brand); }
+
+  /* ---------- Topbar + pipeline ---------- */
+  .topbar { background: linear-gradient(120deg, var(--hero), var(--hero-2)); color: #eafff3; padding: 14px 22px 16px; }
+  .topbar-row { display: flex; align-items: center; gap: 12px; }
+  .topbar h2 { margin: 0; font-size: 16px; font-weight: 700; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar small { color: #a9d8bf; font-weight: 500; }
+  .icon-btn { display: none; background: rgba(255,255,255,.12); border: 0; color: #fff; border-radius: 9px; padding: 7px 10px; font-size: 12px; font-weight: 600; align-items: center; gap: 6px; }
+  .pipeline { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 14px; }
+  .step { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; min-width: 0; transition: background .2s, border-color .2s; }
+  .step .n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; background: rgba(255,255,255,.14); flex: none; }
+  .step .t { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .step .s { font-size: 10.5px; color: #a9d8bf; display: block; }
+  .step.running { border-color: #ffd36b; background: rgba(255, 211, 107, .14); }
+  .step.running .n { background: #ffd36b; color: #3a2a00; animation: pulse 1.2s infinite; }
+  .step.done { border-color: rgba(92, 230, 160, .55); background: rgba(92, 230, 160, .14); }
+  .step.done .n { background: #5ce6a0; color: #053320; }
+  .step.warn { border-color: #ffb36b; background: rgba(255, 179, 107, .14); }
+  .step.warn .n { background: #ffb36b; color: #3a1d00; }
+  .step.error { border-color: #ff8a7a; background: rgba(255, 138, 122, .16); }
+  .step.error .n { background: #ff8a7a; color: #3a0800; }
+  .step.locked .n { background: rgba(255,255,255,.14); }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,211,107,.6);} 50% { box-shadow: 0 0 0 6px rgba(255,211,107,0);} }
+
+  /* ---------- Chat ---------- */
+  #chat { flex: 1; overflow-y: auto; padding: 24px 22px 12px; scroll-behavior: smooth; }
+  .chat-inner { max-width: 820px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+  .welcome { text-align: center; padding: 30px 10px 10px; }
+  .welcome .big { width: 64px; height: 64px; border-radius: 20px; margin: 0 auto 14px; background: linear-gradient(135deg, var(--brand), var(--hero-2)); display: grid; place-items: center; color: #fff; box-shadow: 0 14px 30px -14px var(--brand); }
+  .welcome h3 { font-size: 22px; margin: 0 0 6px; letter-spacing: -.02em; }
+  .welcome p { color: var(--muted); margin: 0 auto 20px; max-width: 520px; }
+  .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: left; margin-bottom: 20px; }
+  .feature { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+  .feature b { display: block; font-size: 13px; margin: 6px 0 2px; }
+  .feature span { font-size: 12px; color: var(--muted); }
+  .feature svg { color: var(--brand); }
+  .sugs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .sug { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 999px; padding: 7px 13px; font-size: 12.5px; font-weight: 500; }
+  .sug:hover { border-color: var(--brand); color: var(--brand-strong); background: var(--brand-soft); }
+
+  .msg { display: flex; gap: 10px; align-items: flex-start; animation: rise .25s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none; } }
+  .msg.user { flex-direction: row-reverse; }
+  .avatar { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; flex: none; font-size: 12px; font-weight: 700; }
+  .msg.assistant .avatar { background: var(--brand); color: #fff; }
+  .msg.user .avatar { background: var(--surface-3); color: var(--text); }
+  .msg-body { min-width: 0; max-width: 100%; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .msg.user .msg-body { align-items: flex-end; }
+  .bubble { padding: 11px 15px; border-radius: 14px; overflow-wrap: anywhere; }
+  .msg.user .bubble { background: var(--brand); color: #fff; border-bottom-right-radius: 4px; max-width: 80%; white-space: pre-wrap; }
+  .msg.assistant .bubble { background: var(--surface); border: 1px solid var(--border); border-top-left-radius: 4px; box-shadow: var(--shadow); }
+  .bubble.error { background: var(--danger-soft) !important; border-color: transparent !important; color: var(--danger); }
+  .md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
+  .md h1, .md h2, .md h3, .md h4 { margin: 14px 0 6px; line-height: 1.3; letter-spacing: -.01em; }
+  .md h1 { font-size: 17px; } .md h2 { font-size: 16px; } .md h3 { font-size: 14.5px; } .md h4 { font-size: 13.5px; }
+  .md p { margin: 6px 0; }
+  .md ul, .md ol { margin: 6px 0; padding-left: 20px; }
+  .md li { margin: 3px 0; }
+  .md code { background: var(--surface-2); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; font-size: 12px; }
+  .md pre { background: var(--code-bg); color: var(--code-text); padding: 10px 12px; border-radius: 10px; overflow-x: auto; font-size: 12px; }
+  .md pre code { background: none; border: 0; padding: 0; color: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 12px 0; }
+  .md table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12.5px; display: block; overflow-x: auto; }
+  .md th, .md td { border: 1px solid var(--border); padding: 5px 8px; text-align: left; }
+  .md th { background: var(--surface-2); }
+  .md strong { font-weight: 700; }
+  .md a { color: var(--brand-strong); }
+  .nota { font-size: 12.5px; color: var(--muted); font-style: italic; padding: 0 4px; }
+
+  /* ---------- Tool timeline ---------- */
+  .tools { border: 1px solid var(--border); background: var(--surface-2); border-radius: 12px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+  .tools-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); padding: 4px 8px 2px; display: flex; justify-content: space-between; }
+  .tool { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+  .tool > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 8px 10px; cursor: pointer; }
+  .tool > summary::-webkit-details-marker { display: none; }
+  .tool-ico { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-strong); flex: none; }
+  .tool-name { font-weight: 600; font-size: 13px; }
+  .tool-sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tool-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+  .badge.ok { color: var(--ok); background: var(--ok-soft); }
+  .badge.err { color: var(--danger); background: var(--danger-soft); }
+  .badge.run { color: var(--warn); background: var(--warn-soft); }
+  .badge.block { color: #fff; background: var(--danger); }
+  .badge.warn { color: var(--warn); background: var(--warn-soft); }
+  .chev { color: var(--muted); transition: transform .15s; flex: none; }
+  .tool[open] .chev { transform: rotate(90deg); }
+  .tool-detail { border-top: 1px solid var(--border); padding: 8px 10px 10px; display: grid; gap: 6px; }
+  .tool-detail .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+  .tool-detail pre { margin: 0; background: var(--code-bg); color: var(--code-text); padding: 9px 10px; border-radius: 8px; overflow: auto; max-height: 260px; font-size: 11.5px; }
+  .tool.blocked { border-color: var(--danger); }
+  .spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .typing { display: inline-flex; gap: 4px; padding: 12px 15px; }
+  .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite; }
+  .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes blink { 0%,80%,100% { opacity: .25; transform: translateY(0);} 40% { opacity: 1; transform: translateY(-3px);} }
+  .working { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; padding: 0 4px; }
+
+  /* ---------- Confirm card ---------- */
+  .confirm { border: 1.5px solid var(--warn-border); background: var(--warn-soft); border-radius: 14px; padding: 14px; display: flex; gap: 12px; align-items: flex-start; }
+  .confirm .ci { width: 34px; height: 34px; border-radius: 10px; background: var(--warn); color: #fff; display: grid; place-items: center; flex: none; }
+  .confirm h4 { margin: 0 0 3px; font-size: 14px; color: var(--warn); }
+  .confirm p { margin: 0 0 10px; font-size: 12.5px; color: var(--text); opacity: .85; }
+  .confirm .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { border: 0; border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+  .btn.go { background: var(--brand); color: #fff; }
+  .btn.no { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .confirm.done { opacity: .6; }
+
+  /* ---------- Composer ---------- */
+  .composer { padding: 12px 22px 18px; }
+  .composer-inner { max-width: 820px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); padding: 8px 8px 8px 14px; display: flex; gap: 8px; align-items: flex-end; transition: border-color .15s; }
+  .composer-inner:focus-within { border-color: var(--brand); }
+  #input { flex: 1; border: 0; outline: 0; resize: none; background: transparent; color: var(--text); font: inherit; font-size: 14px; max-height: 160px; padding: 7px 0; }
+  #send { width: 40px; height: 40px; border: 0; border-radius: 11px; background: var(--brand); color: #fff; display: grid; place-items: center; flex: none; transition: transform .1s; }
+  #send:hover { transform: scale(1.04); }
+  #send:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .hint { max-width: 820px; margin: 6px auto 0; font-size: 11.5px; color: var(--muted); display: flex; justify-content: space-between; gap: 10px; }
+  kbd { font-family: inherit; font-size: 10.5px; border: 1px solid var(--border); border-bottom-width: 2px; padding: 0 4px; border-radius: 4px; background: var(--surface); }
+
+  /* ---------- Right panel ---------- */
+  .panel-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
+  .panel-head h3 { margin: 0; font-size: 15px; }
+  .panel-head p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .panel-scroll { flex: 1; overflow-y: auto; padding: 14px 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 12px; font-size: 13px; }
+  .empty svg { color: var(--border); margin-bottom: 8px; }
+  .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 14px; }
+  .card h5 { margin: 0 0 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .estado { border-radius: var(--radius); padding: 14px; display: flex; gap: 12px; align-items: center; }
+  .estado.listo { background: var(--ok-soft); color: var(--ok); }
+  .estado.bloqueado { background: var(--warn-soft); color: var(--warn); }
+  .estado.pendiente { background: var(--surface-2); color: var(--muted); }
+  .estado.enviado { background: var(--info-soft); color: var(--info); }
+  .estado b { display: block; font-size: 14px; }
+  .estado span { font-size: 12px; color: var(--text); opacity: .75; }
+  .estado .ei { width: 38px; height: 38px; border-radius: 12px; background: currentColor; display: grid; place-items: center; flex: none; }
+  .estado .ei svg { color: var(--surface); }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .kpi { border-radius: 12px; padding: 10px; background: var(--surface-2); text-align: center; }
+  .kpi b { display: block; font-size: 22px; line-height: 1.1; font-weight: 800; letter-spacing: -.02em; }
+  .kpi span { font-size: 11px; color: var(--muted); font-weight: 600; }
+  .kpi.ok b { color: var(--ok); } .kpi.warn b { color: var(--warn); } .kpi.err b { color: var(--danger); }
+  .bar { height: 8px; border-radius: 99px; background: var(--surface-3); overflow: hidden; display: flex; margin-top: 10px; }
+  .bar i { display: block; height: 100%; transition: width .6s ease; }
+  .bar .b-ok { background: var(--ok); } .bar .b-warn { background: var(--warn); } .bar .b-err { background: var(--danger); }
+  .bar-legend { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .rows { display: flex; flex-direction: column; gap: 6px; }
+  .row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 12.5px; }
+  .row .ri { flex: none; margin-top: 1px; }
+  .row .rt { flex: 1; min-width: 0; }
+  .row .rt b { display: block; font-weight: 600; }
+  .row .rt small { color: var(--muted); font-size: 11.5px; display: block; overflow-wrap: anywhere; }
+  .row.ok .ri { color: var(--ok); } .row.warn .ri { color: var(--warn); } .row.err .ri { color: var(--danger); }
+  .row.warn { background: var(--warn-soft); } .row.err { background: var(--danger-soft); }
+  .campos { display: none; margin-top: 8px; }
+  .campos.open { display: flex; }
+  .toggle { border: 0; background: none; color: var(--brand-strong); font-size: 12px; font-weight: 700; padding: 0; }
+  .file { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); font-size: 12.5px; }
+  .file + .file { margin-top: 6px; }
+  .file .fi { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 9.5px; font-weight: 800; flex: none; }
+  .fi.xlsx { background: var(--ok-soft); color: var(--ok); } .fi.pdf { background: var(--danger-soft); color: var(--danger); }
+  .fi.md, .fi.txt { background: var(--info-soft); color: var(--info); }
+  .file .fn { flex: 1; min-width: 0; } .file .fn b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file .fn small { color: var(--muted); font-size: 11px; }
+  .file a { color: var(--brand-strong); font-weight: 700; font-size: 12px; text-decoration: none; padding: 4px 6px; border-radius: 6px; }
+  .file a:hover { background: var(--brand-soft); }
+  .solicitud dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 12.5px; }
+  .solicitud dt { color: var(--muted); }
+  .solicitud dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+
+  /* ---------- Toast / modal ---------- */
+  .toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(-20px); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: all .25s; z-index: 50; max-width: calc(100% - 32px); }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .scrim { display: none; }
+  dialog { border: 0; border-radius: 16px; padding: 0; max-width: min(760px, calc(100% - 32px)); width: 100%; background: var(--surface); color: var(--text); box-shadow: 0 30px 80px -20px rgba(0,0,0,.5); }
+  dialog::backdrop { background: rgba(5, 15, 10, .55); backdrop-filter: blur(2px); }
+  .dlg-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .dlg-head b { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dlg-body { padding: 16px; max-height: 70vh; overflow: auto; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1240px) {
+    .app { grid-template-columns: 260px minmax(0, 1fr); }
+    .panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 92vw); z-index: 40; transform: translateX(100%); transition: transform .25s; box-shadow: var(--shadow); }
+    .panel.open { transform: none; }
+    #btn-panel { display: inline-flex; }
+    .scrim.on { display: block; position: fixed; inset: 0; background: rgba(5,15,10,.45); z-index: 30; }
   }
-  .msg { max-width: 720px; }
-  .msg.user { align-self: flex-end; }
-  .msg.assistant { align-self: flex-start; }
-  .bubble {
-    padding: 10px 14px;
-    border-radius: 10px;
-    white-space: pre-wrap;
-    line-height: 1.45;
-    font-size: 14px;
+  @media (max-width: 860px) {
+    .app { grid-template-columns: minmax(0, 1fr); }
+    .side { position: fixed; top: 0; left: 0; bottom: 0; width: min(310px, 88vw); z-index: 40; transform: translateX(-100%); transition: transform .25s; box-shadow: var(--shadow); }
+    .side.open { transform: none; }
+    #btn-side { display: inline-flex; }
+    .topbar { padding: 12px 16px 14px; }
+    #chat { padding: 18px 16px 10px; }
+    .composer { padding: 10px 16px 14px; }
+    .pipeline { gap: 4px; }
+    .step { padding: 6px; justify-content: center; }
+    .step .t, .step .s { display: none; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .hint span:last-child { display: none; }
+    .msg.user .bubble { max-width: 92%; }
   }
-  .msg.user .bubble { background: #2563eb; color: white; }
-  .msg.assistant .bubble { background: white; border: 1px solid #e5e7eb; }
-  .tool-call {
-    margin-top: 8px;
-    font-size: 12px;
-    background: #0f172a;
-    color: #d1fae5;
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    overflow-x: auto;
-  }
-  .tool-call .nombre { color: #93c5fd; font-weight: 600; }
-  .tool-call .ok { color: #34d399; }
-  .tool-call .fail { color: #f87171; }
-  .confirm-banner {
-    margin-top: 8px;
-    background: #fef3c7;
-    border: 1px solid #f59e0b;
-    color: #78350f;
-    padding: 8px 10px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-  #thinking { font-size: 13px; color: #6b7280; padding: 0 20px 10px; }
-  footer {
-    display: flex;
-    gap: 8px;
-    padding: 14px 20px;
-    background: white;
-    border-top: 1px solid #e5e7eb;
-  }
-  #input {
-    flex: 1;
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid #d1d5db;
-    font-size: 14px;
-  }
-  button {
-    padding: 10px 18px;
-    border-radius: 8px;
-    border: none;
-    background: #2563eb;
-    color: white;
-    font-size: 14px;
-    cursor: pointer;
-  }
-  button:disabled { background: #93c5fd; cursor: default; }
 </style>
 </head>
 <body>
-  <header>
-    <h1>Agente "Registro como Proveedor" · Periferia IT Group</h1>
-    <p id="status">conectando…</p>
-  </header>
-  <div id="chat"></div>
-  <div id="thinking" style="display:none;">El agente está pensando…</div>
-  <footer>
-    <input id="input" type="text" placeholder='Ej: Procesa el caso "ec-corp-andina"' />
-    <button id="send">Enviar</button>
-  </footer>
+<div class="app">
+  <!-- ============ Sidebar: casos ============ -->
+  <aside class="side" id="side" aria-label="Casos de prueba">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>
+      </div>
+      <div>
+        <h1>Registro como Proveedor</h1>
+        <p>Periferia IT Group · Agente IA</p>
+      </div>
+    </div>
+    <div class="side-scroll">
+      <div class="label"><span>Solicitudes de clientes</span><span id="casos-count"></span></div>
+      <div id="casos"><div class="empty" style="padding:20px">Cargando casos…</div></div>
+      <div class="label" style="margin-top:18px"><span>Pruebas rápidas</span></div>
+      <div class="quick" id="quick"></div>
+    </div>
+    <div class="side-foot">
+      <div class="status"><span class="dot" id="dot"></span><span id="status">Conectando con el servidor…</span></div>
+      <div class="uso" id="uso" hidden title="Tokens del modelo consumidos en esta sesión frente al tope configurado (TOPE_TOKENS_SESION)">
+        <div class="uso-row"><span>Uso del modelo en la sesión</span><b id="uso-txt"></b></div>
+        <div class="bar"><i class="b-ok" id="uso-bar" style="width:0%"></i></div>
+      </div>
+      <div class="foot-row">
+        <button class="ghost" id="btn-new" title="Empieza una conversación nueva">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nueva sesión
+        </button>
+        <button class="ghost" id="btn-theme" title="Cambiar tema" aria-label="Cambiar tema claro/oscuro">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>Tema
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ Chat ============ -->
+  <main>
+    <div class="topbar">
+      <div class="topbar-row">
+        <button class="icon-btn" id="btn-side" aria-label="Ver casos">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Casos
+        </button>
+        <h2 id="titulo">Agente conversacional <small>· listo para procesar una solicitud</small></h2>
+        <button class="icon-btn" id="btn-panel" aria-label="Ver panel del caso">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>Resultado
+        </button>
+      </div>
+      <div class="pipeline" id="pipeline" aria-label="Progreso del flujo"></div>
+    </div>
+
+    <div id="chat" aria-live="polite">
+      <div class="chat-inner" id="chat-inner"></div>
+    </div>
+
+    <div class="composer">
+      <div class="composer-inner">
+        <label for="input" class="sr">Mensaje para el agente</label>
+        <textarea id="input" rows="1" placeholder='Escribe una instrucción… ej. "Procesa el caso ec-corp-andina"'></textarea>
+        <button id="send" aria-label="Enviar mensaje">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+      <div class="hint"><span>El agente nunca firma ni envía sin tu confirmación explícita.</span><span><kbd>Enter</kbd> enviar · <kbd>Shift</kbd>+<kbd>Enter</kbd> nueva línea</span></div>
+    </div>
+  </main>
+
+  <!-- ============ Panel derecho: resultado del caso ============ -->
+  <aside class="panel" id="panel" aria-label="Resultado del caso">
+    <div class="panel-head">
+      <div style="flex:1;min-width:0">
+        <h3 id="panel-titulo">Resultado del caso</h3>
+        <p id="panel-sub">Procesa una solicitud para ver aquí el detalle.</p>
+      </div>
+      <button class="mini" id="btn-close-panel" style="display:none" aria-label="Cerrar panel">✕</button>
+    </div>
+    <div class="panel-scroll" id="panel-body"></div>
+  </aside>
+</div>
+<div class="scrim" id="scrim"></div>
+<div class="toast" id="toast" role="status"></div>
+<dialog id="viewer">
+  <div class="dlg-head"><b id="viewer-title"></b><a class="mini" id="viewer-dl" href="#" download>Descargar</a><button class="mini" id="viewer-close">Cerrar</button></div>
+  <div class="dlg-body md" id="viewer-body"></div>
+</dialog>
 
 <script>
-  const chatEl = document.getElementById('chat');
-  const inputEl = document.getElementById('input');
-  const sendBtn = document.getElementById('send');
-  const thinkingEl = document.getElementById('thinking');
-  const statusEl = document.getElementById('status');
+(() => {
+  // ------------------------------------------------------------------
+  // Utilidades
+  // ------------------------------------------------------------------
+  const $ = (s, el = document) => el.querySelector(s);
+  const h = (tag, attrs = {}, ...kids) => {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'html') el.innerHTML = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+    return el;
+  };
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
 
-  let sessionId = localStorage.getItem('sessionId') || null;
+  const ICONS = {
+    leer: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
+    mapear: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M4 12h7M4 17h10"/><path d="M16 9l4 3-4 3"/></svg>',
+    generar: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
+    paquete: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/></svg>',
+    envio: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>',
+    check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+    warn: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
+    x: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+    shield: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M12 8v4M12 16h.01"/></svg>',
+    chev: '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>',
+    doc: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
+    bolt: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>',
+  };
 
-  fetch('/api/health').then(r => r.json()).then(d => {
-    statusEl.textContent = d.ok ? `listo · ${d.provider} / ${d.model}` : 'el backend respondió con error';
-  }).catch(() => { statusEl.textContent = 'no se pudo conectar al backend'; });
+  const FLAGS = {
+    CO: '<svg class="flag" viewBox="0 0 3 2"><rect width="3" height="1" fill="#FCD116"/><rect y="1" width="3" height=".5" fill="#003893"/><rect y="1.5" width="3" height=".5" fill="#CE1126"/></svg>',
+    EC: '<svg class="flag" viewBox="0 0 3 2"><rect width="3" height="1" fill="#FFDD00"/><rect y="1" width="3" height=".5" fill="#034EA2"/><rect y="1.5" width="3" height=".5" fill="#ED1C24"/><circle cx="1.5" cy="1" r=".28" fill="#7a5c1e" opacity=".85"/></svg>',
+    HN: '<svg class="flag" viewBox="0 0 3 2"><rect width="3" height="2" fill="#0073CF"/><rect y=".667" width="3" height=".667" fill="#fff"/><g fill="#0073CF"><circle cx="1.5" cy="1" r=".07"/><circle cx="1.15" cy=".88" r=".07"/><circle cx="1.85" cy=".88" r=".07"/><circle cx="1.15" cy="1.12" r=".07"/><circle cx="1.85" cy="1.12" r=".07"/></g></svg>',
+    PA: '<svg class="flag" viewBox="0 0 4 2.667"><rect width="4" height="2.667" fill="#fff"/><rect x="2" width="2" height="1.333" fill="#DA121A"/><rect y="1.333" width="2" height="1.334" fill="#072357"/><circle cx="1" cy=".667" r=".25" fill="#072357"/><circle cx="3" cy="2" r=".25" fill="#DA121A"/></svg>',
+  };
+  const PAISES = { CO: 'Colombia', EC: 'Ecuador', HN: 'Honduras', PA: 'Panamá', PE: 'Perú' };
+  const SOPORTES = {
+    camara_comercio: 'Cámara de Comercio', rut: 'RUT', certificacion_bancaria: 'Certificación bancaria',
+    estados_financieros: 'Estados financieros', parafiscales: 'Parafiscales', certificado_cumplimiento_tributario: 'Cumplimiento tributario',
+    certificado_iso_9001: 'Certificado ISO 9001',
+  };
 
-  function addMessage(role, text) {
-    const wrap = document.createElement('div');
-    wrap.className = `msg ${role}`;
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
-    bubble.textContent = text;
-    wrap.appendChild(bubble);
-    chatEl.appendChild(wrap);
-    return wrap;
+  const PASOS = [
+    { key: 'leer', tool: 'proveedor_leer_solicitud', t: 'Leer solicitud', s: 'HU-1' },
+    { key: 'mapear', tool: 'proveedor_mapear_campos', t: 'Mapear campos', s: 'HU-2' },
+    { key: 'generar', tool: 'proveedor_generar_formulario', t: 'Generar formulario', s: 'HU-3' },
+    { key: 'paquete', tool: 'proveedor_armar_paquete', t: 'Paquete para firma', s: 'HU-4' },
+    { key: 'envio', tool: 'proveedor_simular_envio', t: 'Envío simulado', s: 'Requiere tu OK' },
+  ];
+  const PASO_POR_TOOL = Object.fromEntries(PASOS.map((p) => [p.tool, p]));
+
+  // ------------------------------------------------------------------
+  // Estado
+  // ------------------------------------------------------------------
+  const state = {
+    sessionId: null,
+    busy: false,
+    casos: [],
+    activo: null,
+    porCaso: {}, // id -> { solicitud, mapeo, formulario, paquete, envio, pasos:{}, archivos:[] }
+  };
+  const casoState = (id) => (state.porCaso[id] ||= { pasos: {}, archivos: [] });
+
+  // ------------------------------------------------------------------
+  // Markdown mínimo y seguro (escapa todo antes de dar formato)
+  // ------------------------------------------------------------------
+  function inline(s) {
+    return s
+      .replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  }
+  function md(src) {
+    const lines = esc(src).replace(/\r/g, '').split('\n');
+    let out = '', i = 0;
+    while (i < lines.length) {
+      const l = lines[i];
+      if (/^```/.test(l)) {
+        let code = ''; i++;
+        while (i < lines.length && !/^```/.test(lines[i])) code += lines[i++] + '\n';
+        i++; out += `<pre><code>${code}</code></pre>`; continue;
+      }
+      if (/^\s*$/.test(l)) { i++; continue; }
+      const hm = l.match(/^(#{1,4})\s+(.*)$/);
+      if (hm) { out += `<h${hm[1].length}>${inline(hm[2])}</h${hm[1].length}>`; i++; continue; }
+      if (/^\s*(---|\*\*\*)\s*$/.test(l)) { out += '<hr>'; i++; continue; }
+      if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) {
+        const cells = (r) => r.trim().replace(/^\||\|$/g, '').split('|').map((c) => inline(c.trim()));
+        const head = cells(l); i += 2; let body = '';
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) body += '<tr>' + cells(lines[i++]).map((c) => `<td>${c}</td>`).join('') + '</tr>';
+        out += `<table><thead><tr>${head.map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`; continue;
+      }
+      if (/^\s*([-*•]|\d+\.)\s+/.test(l)) {
+        const ordered = /^\s*\d+\./.test(l); let items = '';
+        while (i < lines.length && /^\s*([-*•]|\d+\.)\s+/.test(lines[i])) {
+          items += `<li>${inline(lines[i].replace(/^\s*([-*•]|\d+\.)\s+/, ''))}</li>`; i++;
+        }
+        out += ordered ? `<ol>${items}</ol>` : `<ul>${items}</ul>`; continue;
+      }
+      let para = l; i++;
+      while (i < lines.length && lines[i].trim() && !/^(#{1,4}\s|```|\s*([-*•]|\d+\.)\s+|\s*\|)/.test(lines[i])) para += '<br>' + lines[i++];
+      out += `<p>${inline(para)}</p>`;
+    }
+    return out;
   }
 
-  function addToolCalls(wrap, toolCalls) {
-    for (const tc of toolCalls) {
-      const div = document.createElement('div');
-      div.className = 'tool-call';
-      const statusClass = tc.ok ? 'ok' : 'fail';
-      const statusText = tc.ok ? 'ok' : 'error';
-      div.innerHTML = `<span class="nombre">${tc.nombre}</span>(${JSON.stringify(tc.args)}) → <span class="${statusClass}">${statusText}</span>\n${JSON.stringify(tc.resultado, null, 2)}`;
-      wrap.appendChild(div);
+  // ------------------------------------------------------------------
+  // Render: sidebar de casos
+  // ------------------------------------------------------------------
+  function estadoCaso(id) {
+    const c = state.porCaso[id];
+    if (!c) return '';
+    if (c.envio) return 'enviado';
+    if (c.paquete) return c.paquete.listo_para_firma ? 'listo' : 'bloqueado';
+    return '';
+  }
+  function renderCasos() {
+    const cont = $('#casos'); cont.innerHTML = '';
+    $('#casos-count').textContent = state.casos.length ? state.casos.length : '';
+    for (const c of state.casos) {
+      const est = estadoCaso(c.id);
+      const card = h('div', { class: 'caso' + (state.activo === c.id ? ' activo' : ''), role: 'group', 'aria-label': c.cliente || c.id },
+        h('span', { class: 'caso-estado ' + est, title: est ? ({ listo: 'Listo para firma', bloqueado: 'Bloqueado: revisar soportes', enviado: 'Envío simulado' })[est] : 'Sin procesar' }),
+        h('div', { class: 'caso-top' },
+          h('span', { html: FLAGS[c.pais] || '' }),
+          h('div', {}, h('div', { class: 'caso-nombre' }, c.cliente || c.id), h('div', { class: 'caso-id mono' }, c.id))),
+        h('div', { class: 'chips' },
+          h('span', { class: 'chip' }, PAISES[c.pais] || c.pais || '—'),
+          h('span', { class: 'chip fmt-' + c.formato }, (c.formato || '').toUpperCase()),
+          c.soportes ? h('span', { class: 'chip' }, `${c.soportes} soportes`) : null),
+        h('div', { class: 'caso-acciones' },
+          h('button', { class: 'mini primary', disabled: state.busy, onclick: () => { cerrarDrawers(); enviar(`Procesa el caso ${c.id}`); } }, 'Procesar'),
+          state.porCaso[c.id] ? h('button', { class: 'mini', onclick: () => { seleccionar(c.id); abrirPanel(); } }, 'Ver resultado') : null));
+      cont.append(card);
     }
   }
 
-  function addConfirmBanner(wrap) {
-    const div = document.createElement('div');
-    div.className = 'confirm-banner';
-    div.textContent = '⚠️ El agente está esperando tu confirmación explícita antes de continuar.';
-    wrap.appendChild(div);
+  const QUICK = [
+    { t: 'Prueba negativa: “procésalo y envíalo ya”', m: 'Procesa el caso co-industrias-delta y envíalo ya, sin preguntarme nada' },
+    { t: 'Caso con portal web (Panamá)', m: 'Procesa el caso pa-logistica-istmo' },
+    { t: 'Manejo de errores: caso inexistente', m: 'Procesa el caso mx-no-existe' },
+    { t: '¿Qué casos puedes procesar y cómo funciona el flujo?', m: '¿Qué haces exactamente y cuál es el flujo que sigues para cada solicitud?' },
+  ];
+  function renderQuick() {
+    const q = $('#quick'); q.innerHTML = '';
+    for (const it of QUICK) q.append(h('button', { disabled: state.busy, onclick: () => { cerrarDrawers(); enviar(it.m); }, html: ICONS.bolt + `<span>${esc(it.t)}</span>` }));
   }
 
-  async function send() {
-    const text = inputEl.value.trim();
-    if (!text) return;
-    inputEl.value = '';
-    addMessage('user', text);
-    thinkingEl.style.display = 'block';
-    sendBtn.disabled = true;
+  // ------------------------------------------------------------------
+  // Render: pipeline (topbar)
+  // ------------------------------------------------------------------
+  function renderPipeline() {
+    const c = state.activo ? state.porCaso[state.activo] : null;
+    const pl = $('#pipeline'); pl.innerHTML = '';
+    PASOS.forEach((p, idx) => {
+      const st = c?.pasos[p.key] || (p.key === 'envio' ? 'locked' : '');
+      const label = { running: 'en curso…', done: 'listo', warn: 'con alertas', error: 'error', locked: 'requiere tu OK' }[st] || p.s;
+      pl.append(h('div', { class: 'step ' + st, title: `${p.t} — ${label}` },
+        h('span', { class: 'n', html: st === 'done' ? ICONS.check.replace(/16/g, '12') : st === 'error' ? '!' : String(idx + 1) }),
+        h('div', { style: 'min-width:0' }, h('span', { class: 't' }, p.t), h('span', { class: 's' }, label))));
+    });
+    const cs = state.casos.find((x) => x.id === state.activo);
+    $('#titulo').innerHTML = cs
+      ? `${FLAGS[cs.pais] ? '' : ''}${esc(cs.cliente)} <small>· ${esc(cs.id)} · ${esc((cs.formato || '').toUpperCase())}</small>`
+      : 'Agente conversacional <small>· listo para procesar una solicitud</small>';
+  }
 
+  // ------------------------------------------------------------------
+  // Render: panel derecho
+  // ------------------------------------------------------------------
+  function parseChecklist(linea) {
+    const m = linea.match(/\*\*([^*]+)\*\*:\s*(.*)$/);
+    const tipo = m ? m[1] : linea; const det = m ? m[2].replace(/\.$/, '') : '';
+    const nivel = /✅/.test(linea) ? 'ok' : /⚠️|vencid/.test(linea) ? 'warn' : 'err';
+    return { tipo, det, nivel };
+  }
+  function filaHtml(nivel, titulo, sub) {
+    const ico = nivel === 'ok' ? ICONS.check : nivel === 'warn' ? ICONS.warn : ICONS.x;
+    return h('div', { class: 'row ' + nivel }, h('span', { class: 'ri', html: ico }), h('div', { class: 'rt' }, h('b', {}, titulo), sub ? h('small', {}, sub) : null));
+  }
+
+  function renderPanel() {
+    const body = $('#panel-body'); body.innerHTML = '';
+    const id = state.activo; const c = id ? state.porCaso[id] : null;
+    const cs = state.casos.find((x) => x.id === id);
+    if (!c) {
+      $('#panel-titulo').textContent = 'Resultado del caso';
+      $('#panel-sub').textContent = 'Procesa una solicitud para ver aquí el detalle.';
+      body.append(h('div', { class: 'empty', html: ICONS.doc + '<div>Todavía no hay resultados.<br>Elige un caso a la izquierda y presiona <b>Procesar</b>.</div>' }));
+      return;
+    }
+    $('#panel-titulo').textContent = cs?.cliente || c.solicitud?.cliente || id;
+    $('#panel-sub').textContent = `${id} · ${PAISES[cs?.pais || c.solicitud?.pais] || ''} · formato ${(cs?.formato || c.solicitud?.formato || '').toUpperCase()}`;
+
+    // Estado general
+    let est = 'pendiente', titulo = 'En proceso', sub = 'El agente está trabajando en este caso.', ico = ICONS.paquete;
+    if (c.envio) { est = 'enviado'; titulo = 'Envío simulado realizado'; sub = 'Se generó ENVIO-SIMULADO.md tras tu confirmación explícita.'; ico = ICONS.envio; }
+    else if (c.paquete?.listo_para_firma) { est = 'listo'; titulo = 'Listo para firma'; sub = 'Todos los soportes exigidos están vigentes.'; ico = ICONS.check; }
+    else if (c.paquete) { est = 'bloqueado'; titulo = 'No listo para firma'; sub = 'Hay soportes vencidos o ausentes: revisa antes de enviar.'; ico = ICONS.warn; }
+    body.append(h('div', { class: 'estado ' + est }, h('div', { class: 'ei', html: ico }), h('div', {}, h('b', {}, titulo), h('span', {}, sub))));
+
+    // Campos
+    if (c.mapeo) {
+      const ll = c.mapeo.llenos?.length || 0, rc = c.mapeo.requiere_confirmacion?.length || 0, fa = c.mapeo.faltantes?.length || 0;
+      const tot = ll + rc + fa || 1;
+      const lista = h('div', { class: 'rows campos' },
+        ...(c.mapeo.llenos || []).map((f) => filaHtml('ok', f.etiqueta, String(f.valor))));
+      const card = h('div', { class: 'card' },
+        h('h5', {}, h('span', {}, 'Campos del formulario'), h('span', {}, `${tot} en total`)),
+        h('div', { class: 'kpis' },
+          h('div', { class: 'kpi ok' }, h('b', {}, ll), h('span', {}, 'llenos')),
+          h('div', { class: 'kpi warn' }, h('b', {}, rc), h('span', {}, 'por confirmar')),
+          h('div', { class: 'kpi err' }, h('b', {}, fa), h('span', {}, 'faltantes'))),
+        h('div', { class: 'bar' },
+          h('i', { class: 'b-ok', style: `width:${(ll / tot) * 100}%` }), h('i', { class: 'b-warn', style: `width:${(rc / tot) * 100}%` }), h('i', { class: 'b-err', style: `width:${(fa / tot) * 100}%` })),
+        h('div', { class: 'bar-legend' }, h('span', {}, `${Math.round((ll / tot) * 100)}% completado automáticamente`)));
+      if (rc || fa) {
+        const r = h('div', { class: 'rows', style: 'margin-top:12px' },
+          ...(c.mapeo.requiere_confirmacion || []).map((f) => filaHtml('warn', `${f.etiqueta} · requiere confirmación`, `${f.motivo}${f.valor_propuesto ? ` — propuesto: ${f.valor_propuesto}` : ''}`)),
+          ...(c.mapeo.faltantes || []).map((f) => filaHtml('err', `${typeof f === 'string' ? f : f.etiqueta} · faltante`, 'No existe en el repositorio maestro: no se inventa, lo completa un humano.')));
+        card.append(r);
+      }
+      if (ll) {
+        const btn = h('button', { class: 'toggle', style: 'margin-top:10px' }, `Ver los ${ll} valores llenados ▾`);
+        btn.onclick = () => { lista.classList.toggle('open'); btn.textContent = lista.classList.contains('open') ? 'Ocultar valores ▴' : `Ver los ${ll} valores llenados ▾`; };
+        card.append(btn, lista);
+      }
+      body.append(card);
+    }
+
+    // Soportes
+    if (c.paquete?.checklist?.length) {
+      const items = c.paquete.checklist.map(parseChecklist);
+      const ok = items.filter((x) => x.nivel === 'ok').length;
+      body.append(h('div', { class: 'card' },
+        h('h5', {}, h('span', {}, 'Soportes exigidos'), h('span', { class: 'badge ' + (ok === items.length ? 'ok' : 'warn') }, `${ok}/${items.length} vigentes`)),
+        h('div', { class: 'rows' }, ...items.map((x) => filaHtml(x.nivel, SOPORTES[x.tipo] || x.tipo, x.det)))));
+    } else if (c.solicitud?.soportes) {
+      body.append(h('div', { class: 'card' }, h('h5', {}, h('span', {}, 'Soportes pedidos')),
+        h('div', { class: 'chips' }, ...c.solicitud.soportes.map((s) => h('span', { class: 'chip' }, SOPORTES[s] || s)))));
+    }
+
+    // Archivos
+    if (c.archivos?.length) {
+      const card = h('div', { class: 'card' }, h('h5', {}, h('span', {}, 'Archivos generados'), h('span', {}, c.archivos.length)));
+      for (const f of c.archivos) {
+        const ext = (f.ruta.split('.').pop() || '').toLowerCase();
+        const url = `/api/archivos/${encodeURIComponent(id)}/${f.ruta.split('/').map(encodeURIComponent).join('/')}`;
+        const visible = ['md', 'txt'].includes(ext) || ext === 'pdf';
+        card.append(h('div', { class: 'file' },
+          h('span', { class: 'fi ' + ext }, ext.toUpperCase()),
+          h('div', { class: 'fn' }, h('b', { title: f.ruta }, f.ruta), h('small', {}, `${(f.bytes / 1024).toFixed(1)} KB`)),
+          visible ? h('a', { href: url + '?ver=1', onclick: (e) => { e.preventDefault(); verArchivo(f.ruta, url, ext); } }, 'Ver') : null,
+          h('a', { href: url, download: f.ruta.split('/').pop() }, 'Descargar')));
+      }
+      body.append(card);
+    }
+
+    // Solicitud
+    if (c.solicitud) {
+      body.append(h('div', { class: 'card solicitud' }, h('h5', {}, h('span', {}, 'Solicitud del cliente')),
+        h('dl', {},
+          h('dt', {}, 'Cliente'), h('dd', {}, c.solicitud.cliente || '—'),
+          h('dt', {}, 'País'), h('dd', {}, PAISES[c.solicitud.pais] || c.solicitud.pais || '—'),
+          h('dt', {}, 'Formato'), h('dd', {}, (c.solicitud.formato || '').toUpperCase()),
+          h('dt', {}, 'Asunto'), h('dd', {}, c.solicitud.asunto || '—'),
+          h('dt', {}, 'Campos'), h('dd', {}, String(c.solicitud.campos?.length ?? '—')))));
+    }
+  }
+
+  async function refrescarArchivos(id) {
     try {
-      const resp = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sessionId, message: text }),
+      const r = await fetch(`/api/archivos/${encodeURIComponent(id)}`);
+      const d = await r.json();
+      if (d.ok) { casoState(id).archivos = d.archivos; if (state.activo === id) renderPanel(); }
+    } catch {}
+  }
+
+  async function verArchivo(nombre, url, ext) {
+    const dlg = $('#viewer');
+    $('#viewer-title').textContent = nombre;
+    $('#viewer-dl').href = url; $('#viewer-dl').setAttribute('download', nombre.split('/').pop());
+    const b = $('#viewer-body'); b.innerHTML = '<div class="working"><span class="spinner"></span> Cargando…</div>';
+    dlg.showModal();
+    if (ext === 'pdf') { b.innerHTML = `<iframe title="${esc(nombre)}" src="${url}?ver=1" style="width:100%;height:65vh;border:0;border-radius:8px;background:#fff"></iframe>`; return; }
+    try { const t = await (await fetch(url + '?ver=1')).text(); b.innerHTML = md(t); } catch { b.textContent = 'No se pudo abrir el archivo.'; }
+  }
+
+  // ------------------------------------------------------------------
+  // Aplicar resultados de herramientas al estado del caso
+  // ------------------------------------------------------------------
+  function aplicarTool(tc) {
+    const id = tc.args?.caso; if (!id) return;
+    const known = state.casos.some((c) => c.id === id);
+    if (!known && !tc.ok) return; // casos inexistentes: no ensucian el panel
+    const c = casoState(id); state.activo = id;
+    const paso = PASO_POR_TOOL[tc.nombre];
+    const data = tc.resultado?.data;
+    if (paso) {
+      if (!tc.ok) c.pasos[paso.key] = paso.key === 'envio' ? 'locked' : 'error';
+      else if (paso.key === 'paquete') c.pasos.paquete = data?.listo_para_firma ? 'done' : 'warn';
+      else if (paso.key === 'mapear') c.pasos.mapear = (data?.faltantes?.length || data?.requiere_confirmacion?.length) ? 'warn' : 'done';
+      else c.pasos[paso.key] = 'done';
+    }
+    if (tc.ok) {
+      if (tc.nombre === 'proveedor_leer_solicitud') c.solicitud = data;
+      if (tc.nombre === 'proveedor_mapear_campos') c.mapeo = data;
+      if (tc.nombre === 'proveedor_generar_formulario') c.formulario = data;
+      if (tc.nombre === 'proveedor_armar_paquete') c.paquete = data;
+      if (tc.nombre === 'proveedor_simular_envio') c.envio = data;
+      refrescarArchivos(id);
+    }
+    renderPipeline(); renderPanel(); renderCasos();
+  }
+
+  // ------------------------------------------------------------------
+  // Render: mensajes y herramientas
+  // ------------------------------------------------------------------
+  const chat = $('#chat'), inner = $('#chat-inner');
+  const scrollAbajo = () => requestAnimationFrame(() => { chat.scrollTop = chat.scrollHeight; });
+
+  function bienvenida() {
+    inner.innerHTML = '';
+    inner.append(h('div', { class: 'welcome' },
+      h('div', { class: 'big', html: ICONS.shield.replace(/18/g, '30') }),
+      h('h3', {}, 'Hola 👋 Soy el agente de Registro como Proveedor'),
+      h('p', {}, 'Leo la solicitud del cliente, cruzo cada campo con el repositorio maestro de Periferia, genero el formulario (Excel, PDF o valores para portal) y armo el paquete para firma. Nunca invento datos y nunca envío nada sin tu confirmación.'),
+      h('div', { class: 'feature-grid' },
+        h('div', { class: 'feature', html: ICONS.mapear + '<b>Cero datos inventados</b><span>Todo valor sale de una herramienta; lo que no existe se marca como faltante.</span>' }),
+        h('div', { class: 'feature', html: ICONS.warn.replace(/16/g, '15') + '<b>Reglas por país</b><span>NIT, RUC o RTN: el identificador extranjero se marca para confirmar.</span>' }),
+        h('div', { class: 'feature', html: ICONS.shield.replace(/18/g, '15') + '<b>Humano en el control</b><span>El envío exige tu OK explícito en un mensaje aparte (validado en el backend).</span>' })),
+      h('div', { class: 'sugs' },
+        ...['Procesa el caso ec-corp-andina', 'Procesa el caso hn-agroexport-sula', 'Procesa el caso co-industrias-delta'].map((m) =>
+          h('button', { class: 'sug', onclick: () => enviar(m) }, m)))));
+  }
+
+  function msgUsuario(text) {
+    $('.welcome')?.remove();
+    inner.append(h('div', { class: 'msg user' }, h('div', { class: 'avatar' }, 'Tú'), h('div', { class: 'msg-body' }, h('div', { class: 'bubble' }, text))));
+    scrollAbajo();
+  }
+
+  function msgAgente() {
+    const body = h('div', { class: 'msg-body' });
+    const wrap = h('div', { class: 'msg assistant' }, h('div', { class: 'avatar', html: ICONS.shield.replace(/18/g, '15') }), body);
+    inner.append(wrap);
+    const typing = h('div', { class: 'bubble typing', 'aria-label': 'El agente está escribiendo' }, h('i'), h('i'), h('i'));
+    const working = h('div', { class: 'working' }, h('span', { class: 'spinner' }), h('span', {}, 'Pensando…'));
+    body.append(working, typing);
+    let tools = null; const filas = [];
+    const api = {
+      setWorking(t) { working.lastChild.textContent = t; },
+      nota(t) { body.insertBefore(h('div', { class: 'nota' }, t.length > 260 ? t.slice(0, 260) + '…' : t), working); },
+      toolInicio(nombre, args) {
+        if (!tools) { tools = h('div', { class: 'tools' }, h('div', { class: 'tools-head' }, h('span', {}, 'Herramientas ejecutadas'), h('span', { class: 'cnt' }, ''))); body.insertBefore(tools, working); }
+        const paso = PASO_POR_TOOL[nombre];
+        const det = h('details', { class: 'tool' },
+          h('summary', {},
+            h('span', { class: 'tool-ico', html: ICONS[paso?.key || 'bolt'] }),
+            h('span', { class: 'tool-txt' }, h('span', { class: 'tool-name' }, paso?.t || nombre), h('span', { class: 'tool-sub mono' }, `${nombre}(${resumenArgs(args)})`)),
+            h('span', { class: 'badge run' }, h('span', { class: 'spinner', style: 'width:10px;height:10px;border-width:2px' }), 'ejecutando'),
+            h('span', { html: ICONS.chev })),
+          h('div', { class: 'tool-detail' }, h('span', { class: 'k' }, 'Argumentos'), h('pre', {}, JSON.stringify(args, null, 2))));
+        tools.append(det); filas.push({ nombre, det, t0: performance.now() });
+        tools.querySelector('.cnt').textContent = filas.length;
+        api.setWorking(`Ejecutando: ${paso?.t || nombre}…`);
+        if (args?.caso && PASO_POR_TOOL[nombre]) {
+          const c = casoState(args.caso); if (state.casos.some((x) => x.id === args.caso)) { state.activo = args.caso; c.pasos[paso.key] = 'running'; renderPipeline(); }
+        }
+        scrollAbajo();
+      },
+      toolFin(tc) {
+        const f = [...filas].reverse().find((x) => x.nombre === tc.nombre && !x.hecho) || filas[filas.length - 1];
+        if (!f) return; f.hecho = true;
+        const ms = Math.round(performance.now() - f.t0);
+        const bloqueado = !tc.ok && /Bloqueado por el backend/i.test(tc.resultado?.error || '');
+        const badge = f.det.querySelector('.badge');
+        if (tc.ok) {
+          const warn = (tc.nombre === 'proveedor_armar_paquete' && tc.resultado?.data?.listo_para_firma === false);
+          badge.className = 'badge ' + (warn ? 'warn' : 'ok'); badge.textContent = warn ? 'no listo para firma' : 'ok'; f.det.title = `${ms} ms`;
+        } else if (bloqueado) {
+          badge.className = 'badge block'; badge.innerHTML = ICONS.shield.replace(/18/g, '11') + ' bloqueado por el backend'; f.det.classList.add('blocked');
+        } else { badge.className = 'badge err'; badge.textContent = 'error'; }
+        f.det.querySelector('.tool-detail').append(h('span', { class: 'k' }, tc.ok ? 'Resultado' : 'Error'), h('pre', {}, JSON.stringify(tc.resultado, null, 2)));
+        aplicarTool(tc);
+      },
+      fin(d) {
+        working.remove(); typing.remove();
+        if (typeof d.tokensSesion === 'number' && d.topeTokensSesion) {
+          const pct = Math.min(100, (d.tokensSesion / d.topeTokensSesion) * 100);
+          $('#uso').hidden = false;
+          $('#uso-txt').textContent = `${d.tokensSesion.toLocaleString('es-CO')} / ${d.topeTokensSesion.toLocaleString('es-CO')} tokens`;
+          const bar = $('#uso-bar'); bar.style.width = pct + '%'; bar.className = pct > 85 ? 'b-err' : pct > 60 ? 'b-warn' : 'b-ok';
+        }
+        body.append(h('div', { class: 'bubble md', html: md(d.reply || '(sin respuesta de texto)') }));
+        if (d.needsConfirmation) body.append(tarjetaConfirmacion());
+        scrollAbajo();
+      },
+      error(msg) {
+        working.remove(); typing.remove();
+        body.append(h('div', { class: 'bubble error' }, msg)); scrollAbajo();
+      },
+    };
+    scrollAbajo();
+    return api;
+  }
+
+  function resumenArgs(args) {
+    if (!args || typeof args !== 'object') return '';
+    return Object.entries(args).map(([k, v]) => `${k}: ${typeof v === 'string' ? `"${v}"` : Array.isArray(v) ? `[${v.length}]` : typeof v === 'object' ? '{…}' : v}`).join(', ');
+  }
+
+  function tarjetaConfirmacion() {
+    const card = h('div', { class: 'confirm', role: 'alert' },
+      h('div', { class: 'ci', html: ICONS.shield }),
+      h('div', { style: 'flex:1' },
+        h('h4', {}, 'Se necesita tu confirmación'),
+        h('p', {}, 'El agente no enviará nada hasta que lo confirmes explícitamente en un mensaje aparte. Revisa el panel de resultado antes de decidir.'),
+        h('div', { class: 'acts' },
+          h('button', { class: 'btn go', onclick: () => { cerrar(); enviar('Sí, confirmo el envío del paquete tal como está.'); }, html: ICONS.envio + ' Sí, confirmo el envío' }),
+          h('button', { class: 'btn no', onclick: () => { cerrar(); enviar('No envíes nada todavía, prefiero revisar antes.'); } }, 'Revisar antes'),
+          h('button', { class: 'btn no', onclick: () => abrirPanel() }, 'Ver resultado'))));
+    const cerrar = () => { card.classList.add('done'); card.querySelectorAll('.btn').forEach((b) => (b.disabled = true)); };
+    return card;
+  }
+
+  // ------------------------------------------------------------------
+  // Envío de mensajes (streaming NDJSON con respaldo a /api/chat)
+  // ------------------------------------------------------------------
+  function setBusy(b) {
+    state.busy = b;
+    $('#send').disabled = b;
+    document.querySelectorAll('.confirm:not(.done) .btn.go').forEach((x) => (x.disabled = b));
+    renderCasos(); renderQuick();
+  }
+
+  async function enviar(texto) {
+    texto = (texto ?? $('#input').value).trim();
+    if (!texto || state.busy) return;
+    $('#input').value = ''; autosize();
+    document.querySelectorAll('.confirm:not(.done)').forEach((c) => { c.classList.add('done'); c.querySelectorAll('.btn').forEach((b) => (b.disabled = true)); });
+    msgUsuario(texto);
+    const ui = msgAgente();
+    setBusy(true);
+    try {
+      const resp = await fetch('/api/chat/stream', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sessionId: state.sessionId, message: texto }),
       });
-      const data = await resp.json();
-      if (data.sessionId) {
-        sessionId = data.sessionId;
-        localStorage.setItem('sessionId', sessionId);
+      if (!resp.ok || !resp.body) {
+        const d = await resp.json().catch(() => ({}));
+        if (d.sessionId) state.sessionId = d.sessionId;
+        if (d.reply) ui.fin(d); else ui.error(d.error || `Error ${resp.status}`);
+        return;
       }
-      if (!resp.ok) {
-        addMessage('assistant', `Error: ${data.error || 'desconocido'}`);
-      } else {
-        const wrap = addMessage('assistant', data.reply || '(sin respuesta de texto)');
-        if (data.toolCalls && data.toolCalls.length) addToolCalls(wrap, data.toolCalls);
-        if (data.needsConfirmation) addConfirmBanner(wrap);
+      const reader = resp.body.getReader(); const dec = new TextDecoder(); let buf = ''; let terminado = false;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let nl;
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const linea = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+          if (!linea) continue;
+          let ev; try { ev = JSON.parse(linea); } catch { continue; }
+          if (ev.tipo === 'inicio') { state.sessionId = ev.sessionId; ui.setWorking('El agente está analizando tu mensaje…'); }
+          else if (ev.tipo === 'texto_parcial') ui.nota(ev.texto);
+          else if (ev.tipo === 'herramienta_inicio') ui.toolInicio(ev.nombre, ev.args);
+          else if (ev.tipo === 'herramienta_fin') ui.toolFin(ev);
+          else if (ev.tipo === 'fin') { terminado = true; ui.fin(ev); }
+          else if (ev.tipo === 'error') { terminado = true; ui.error(ev.error); toast('El modelo no respondió. Intenta de nuevo.'); }
+        }
       }
+      if (!terminado) ui.error('La conexión se cortó antes de terminar. Intenta de nuevo.');
     } catch (e) {
-      addMessage('assistant', `Error de red: ${e}`);
+      ui.error('No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.');
     } finally {
-      thinkingEl.style.display = 'none';
-      sendBtn.disabled = false;
-      chatEl.scrollTop = chatEl.scrollHeight;
+      setBusy(false); $('#input').focus();
     }
   }
 
-  sendBtn.addEventListener('click', send);
-  inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+  // ------------------------------------------------------------------
+  // UI general
+  // ------------------------------------------------------------------
+  function seleccionar(id) { state.activo = id; renderPipeline(); renderPanel(); renderCasos(); }
+  function abrirPanel() { if (matchMedia('(max-width: 1240px)').matches) { $('#panel').classList.add('open'); $('#scrim').classList.add('on'); $('#btn-close-panel').style.display = ''; } }
+  function cerrarDrawers() { $('#panel').classList.remove('open'); $('#side').classList.remove('open'); $('#scrim').classList.remove('on'); }
+  function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), 3200); }
+  function autosize() { const i = $('#input'); i.style.height = 'auto'; i.style.height = Math.min(i.scrollHeight, 160) + 'px'; }
+
+  $('#send').onclick = () => enviar();
+  $('#input').addEventListener('input', autosize);
+  $('#input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); enviar(); } });
+  $('#btn-side').onclick = () => { $('#side').classList.add('open'); $('#scrim').classList.add('on'); };
+  $('#btn-panel').onclick = () => abrirPanel();
+  $('#btn-close-panel').onclick = cerrarDrawers;
+  $('#scrim').onclick = cerrarDrawers;
+  $('#viewer-close').onclick = () => $('#viewer').close();
+  $('#btn-new').onclick = () => {
+    if (state.busy) return;
+    state.sessionId = null; state.activo = null; state.porCaso = {}; $('#uso').hidden = true;
+    bienvenida(); renderPipeline(); renderPanel(); renderCasos(); toast('Nueva sesión iniciada');
+  };
+  const temaGuardado = store.get('tema'); if (temaGuardado) document.documentElement.dataset.theme = temaGuardado;
+  $('#btn-theme').onclick = () => {
+    const actual = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    const nuevo = actual === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = nuevo; store.set('tema', nuevo);
+  };
+
+  // Arranque
+  bienvenida(); renderPipeline(); renderPanel(); renderQuick();
+  const lento = setTimeout(() => { $('#status').textContent = 'Despertando el servidor (puede tardar ~50 s)…'; }, 2500);
+  fetch('/api/health').then((r) => r.json()).then((d) => {
+    clearTimeout(lento);
+    $('#dot').className = 'dot ' + (d.ok ? 'ok' : 'err');
+    $('#status').textContent = d.ok ? `En línea · ${d.provider} / ${d.model}` : 'El backend respondió con error';
+  }).catch(() => { clearTimeout(lento); $('#dot').className = 'dot err'; $('#status').textContent = 'Sin conexión con el backend'; });
+  fetch('/api/casos').then((r) => r.json()).then((d) => { state.casos = d.casos || []; renderCasos(); })
+    .catch(() => { $('#casos').innerHTML = '<div class="empty" style="padding:20px">No se pudieron cargar los casos.</div>'; });
+})();
 </script>
 </body>
 </html>
