@@ -33,6 +33,15 @@ const IDENTIFICADOR_POR_PAIS: Record<string, string> = {
   HN: "RTN",
 };
 
+// Etiquetas genéricas: no dicen qué identificador quieren (HU-1). Se reportan
+// como requiere_confirmacion proponiendo el equivalente del país del cliente.
+const ETIQUETAS_TRIBUTARIAS_GENERICAS = new Set([
+  "identificación tributaria",
+  "identificacion tributaria",
+  "número de identificación fiscal",
+  "numero de identificacion fiscal",
+]);
+
 // Etiquetas que el glosario resuelve a "nit" pero que en realidad piden el
 // identificador tributario del PAÍS DEL CLIENTE, no necesariamente el NIT
 // colombiano que Periferia tiene en su maestro.
@@ -57,11 +66,19 @@ function fail(error: string) {
   return JSON.stringify({ ok: false, error });
 }
 
-function logEvento(dir: string, caso: string, herramienta: string, okFlag: boolean, resumen: string) {
-  const outDir = path.join(OUT_ROOT(dir), /^[a-z0-9][a-z0-9-]*$/i.test(caso) ? caso : "_invalido");
-  fs.mkdirSync(outDir, { recursive: true });
-  const linea = JSON.stringify({ ts: new Date().toISOString(), herramienta, ok: okFlag, resumen }) + "\n";
-  fs.appendFileSync(path.join(outDir, "log.jsonl"), linea);
+// RN5: cada ejecución queda en out/<caso>/log.jsonl con { ts, herramienta, ok, resumen }.
+// CA4: además, toda llamada queda en out/log.jsonl (registro global, con el caso).
+export function logEvento(dir: string, caso: string, herramienta: string, okFlag: boolean, resumen: string) {
+  try {
+    const casoSeguro = /^[a-z0-9][a-z0-9-]*$/i.test(caso) ? caso : "_invalido";
+    const ts = new Date().toISOString();
+    const outDir = path.join(OUT_ROOT(dir), casoSeguro);
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.appendFileSync(path.join(outDir, "log.jsonl"), JSON.stringify({ ts, herramienta, ok: okFlag, resumen }) + "\n");
+    fs.appendFileSync(path.join(OUT_ROOT(dir), "log.jsonl"), JSON.stringify({ ts, caso: casoSeguro, herramienta, ok: okFlag, resumen }) + "\n");
+  } catch {
+    // El log nunca debe tumbar una herramienta.
+  }
 }
 
 // Navega un objeto por una ruta tipo "banco.numero_cuenta" o
@@ -101,6 +118,7 @@ type CasoInfo = {
   plantillaCeldas?: Array<{ hoja: string; celda_etiqueta: string; etiqueta: string; celda_valor: string }>;
   plantillaCampos?: Array<{ etiqueta: string; obligatorio: boolean }>;
   soportesExigidos: string[];
+  advertencias: string[];
 };
 
 export function fechaReferencia(): Date {
@@ -114,6 +132,14 @@ export function nombreCasoValido(caso: string): boolean {
   return /^[a-z0-9][a-z0-9-]*$/i.test(caso);
 }
 
+function leerJsonDelCaso<T>(archivo: string, caso: string): T {
+  try {
+    return readJson<T>(archivo);
+  } catch {
+    throw new Error(`El archivo ${path.basename(archivo)} del caso "${caso}" está corrupto o no es JSON válido.`);
+  }
+}
+
 function cargarCaso(dir: string, caso: string): CasoInfo {
   if (!nombreCasoValido(caso)) {
     throw new Error(`El nombre de caso "${caso}" no es válido.`);
@@ -122,17 +148,34 @@ function cargarCaso(dir: string, caso: string): CasoInfo {
   if (!fs.existsSync(base)) {
     throw new Error(`El caso "${caso}" no existe en fixtures/reto-01/casos/.`);
   }
-  const solicitud = readJson<CasoInfo["solicitud"]>(path.join(base, "solicitud.json"));
-  const soportesExigidos = readJson<string[]>(path.join(base, "soportes-exigidos.json"));
+  const solicitud = leerJsonDelCaso<CasoInfo["solicitud"]>(path.join(base, "solicitud.json"), caso);
+  const soportesPath = path.join(base, "soportes-exigidos.json");
+  const advertencias: string[] = [];
+  let soportesExigidos: string[] = [];
+  try {
+    soportesExigidos = fs.existsSync(soportesPath) ? leerJsonDelCaso<string[]>(soportesPath, caso) : [];
+  } catch (e) {
+    advertencias.push((e as Error).message);
+  }
 
-  const celdasPath = path.join(base, "plantilla-celdas.json");
-  const camposPath = path.join(base, "plantilla-campos.json");
+  // HU-5: una plantilla corrupta no detiene el proceso; se reporta y se
+  // continúa con lo que sí se puede hacer (soportes, paquete, faltantes).
+  const cargarPlantilla = <T>(archivo: string): T | undefined => {
+    if (!fs.existsSync(archivo)) return undefined;
+    try {
+      return leerJsonDelCaso<T>(archivo, caso);
+    } catch (e) {
+      advertencias.push((e as Error).message);
+      return undefined;
+    }
+  };
 
   return {
     solicitud,
-    plantillaCeldas: fs.existsSync(celdasPath) ? readJson(celdasPath) : undefined,
-    plantillaCampos: fs.existsSync(camposPath) ? readJson(camposPath) : undefined,
+    plantillaCeldas: cargarPlantilla(path.join(base, "plantilla-celdas.json")),
+    plantillaCampos: cargarPlantilla(path.join(base, "plantilla-campos.json")),
     soportesExigidos,
+    advertencias,
   };
 }
 
@@ -159,16 +202,20 @@ export const leer_solicitud = {
 
       const campos = etiquetas.map((etiqueta) => {
         const clave = normalizar(etiqueta);
-        const esIdentificadorTributario = ETIQUETAS_IDENTIFICADOR_TRIBUTARIO.has(clave);
-        if (esIdentificadorTributario) {
-          const idEsperado = IDENTIFICADOR_POR_PAIS[info.solicitud.pais] ?? "identificador tributario";
+        if (!ETIQUETAS_IDENTIFICADOR_TRIBUTARIO.has(clave)) return { etiqueta, ambiguo: false };
+        const idPais = IDENTIFICADOR_POR_PAIS[info.solicitud.pais] ?? "identificador tributario";
+        if (ETIQUETAS_TRIBUTARIAS_GENERICAS.has(clave)) {
           return {
             etiqueta,
-            ambiguo: info.solicitud.pais !== "CO",
-            nota:
-              info.solicitud.pais !== "CO"
-                ? `El cliente pide "${idEsperado}" (${info.solicitud.pais}); Periferia solo tiene NIT colombiano. Se propone llenar con el NIT y marcar requiere_confirmacion.`
-                : undefined,
+            ambiguo: true,
+            nota: `Campo ambiguo: en ${info.solicitud.pais} el equivalente es ${idPais}. Se marca requiere_confirmacion.`,
+          };
+        }
+        if (info.solicitud.pais !== "CO") {
+          return {
+            etiqueta,
+            ambiguo: true,
+            nota: `El cliente pide "${idPais}" (${info.solicitud.pais}); Periferia solo tiene NIT colombiano. Se propone el NIT y se marca requiere_confirmacion (identificador extranjero).`,
           };
         }
         return { etiqueta, ambiguo: false };
@@ -181,6 +228,7 @@ export const leer_solicitud = {
         asunto: info.solicitud.asunto,
         campos,
         soportes: info.soportesExigidos,
+        ...(info.advertencias.length ? { advertencias: info.advertencias } : {}),
       };
 
       logEvento(ctx.directory, args.caso, "proveedor_leer_solicitud", true, `${campos.length} campos, formato ${info.solicitud.formato}`);
@@ -197,6 +245,51 @@ export const leer_solicitud = {
 // HU-2 · proveedor_mapear_campos
 // ---------------------------------------------------------------------------
 
+type ResultadoMapeo = {
+  llenos: Array<{ etiqueta: string; ruta: string; valor: unknown }>;
+  faltantes: string[];
+  requiere_confirmacion: Array<{ etiqueta: string; motivo: string; valor_propuesto?: unknown }>;
+};
+
+// Núcleo del mapeo (lo usan proveedor_mapear_campos y proveedor_armar_paquete).
+function mapearEtiquetas(dir: string, pais: string, etiquetas: string[]): ResultadoMapeo {
+  const maestro = readJson<Record<string, unknown>>(path.join(REPO_ROOT(dir), "maestro.json"));
+  const glosario = readJson<Record<string, string>>(path.join(FIXTURES_ROOT(dir), "glosario-campos.json"));
+  const r: ResultadoMapeo = { llenos: [], faltantes: [], requiere_confirmacion: [] };
+
+  for (const etiqueta of etiquetas) {
+    const ruta = glosario[etiqueta];
+    const valor = ruta ? getByPath(maestro, ruta) : undefined;
+    if (!ruta || valor === undefined || valor === null || valor === "") {
+      r.faltantes.push(etiqueta); // HU-2: sin fuente → faltante, nunca inventado
+      continue;
+    }
+    const clave = normalizar(etiqueta);
+    const idPais = IDENTIFICADOR_POR_PAIS[pais] ?? "identificador tributario";
+    if (ETIQUETAS_IDENTIFICADOR_TRIBUTARIO.has(clave) && pais !== "CO") {
+      // RN1: identificador extranjero → se llena con el NIT y se marca.
+      r.requiere_confirmacion.push({
+        etiqueta,
+        motivo: `identificador extranjero: el cliente pide ${idPais} (${pais}) y Periferia solo tiene NIT colombiano`,
+        valor_propuesto: valor,
+      });
+      continue;
+    }
+    if (ETIQUETAS_TRIBUTARIAS_GENERICAS.has(clave)) {
+      // HU-1: etiqueta ambigua → se propone el equivalente del país.
+      r.requiere_confirmacion.push({
+        etiqueta,
+        motivo: `campo ambiguo: no especifica el identificador; en ${pais} el equivalente es ${idPais}`,
+        valor_propuesto: valor,
+      });
+      continue;
+    }
+    r.llenos.push({ etiqueta, ruta, valor });
+  }
+  return r;
+}
+// ---------------------------------------------------------------------------
+
 export const mapear_campos = {
   description:
     "Cruza los campos solicitados por el cliente con el repositorio maestro de Periferia usando el glosario de sinónimos. Nunca inventa un valor: un campo sin fuente queda como faltante.",
@@ -207,41 +300,7 @@ export const mapear_campos = {
   async execute(args: { caso: string; campos: string[] }, ctx: Ctx) {
     try {
       const info = cargarCaso(ctx.directory, args.caso);
-      const maestro = readJson<Record<string, unknown>>(path.join(REPO_ROOT(ctx.directory), "maestro.json"));
-      const glosario = readJson<Record<string, string>>(path.join(FIXTURES_ROOT(ctx.directory), "glosario-campos.json"));
-
-      const llenos: Array<{ etiqueta: string; ruta: string; valor: unknown }> = [];
-      const faltantes: string[] = [];
-      const requiere_confirmacion: Array<{ etiqueta: string; motivo: string; valor_propuesto?: unknown }> = [];
-
-      for (const etiqueta of args.campos) {
-        const ruta = glosario[etiqueta];
-        const claveNormalizada = normalizar(etiqueta);
-        const esIdentificadorTributario = ETIQUETAS_IDENTIFICADOR_TRIBUTARIO.has(claveNormalizada);
-
-        if (!ruta) {
-          faltantes.push(etiqueta);
-          continue;
-        }
-
-        const valor = getByPath(maestro, ruta);
-        if (valor === undefined || valor === null || valor === "") {
-          faltantes.push(etiqueta);
-          continue;
-        }
-
-        if (esIdentificadorTributario && info.solicitud.pais !== "CO") {
-          requiere_confirmacion.push({
-            etiqueta,
-            motivo: "identificador extranjero: el cliente pide el identificador tributario de su país, Periferia solo tiene NIT colombiano",
-            valor_propuesto: valor,
-          });
-          continue;
-        }
-
-        llenos.push({ etiqueta, ruta, valor });
-      }
-
+      const { llenos, faltantes, requiere_confirmacion } = mapearEtiquetas(ctx.directory, info.solicitud.pais, args.campos);
       const data = { llenos, faltantes, requiere_confirmacion };
       logEvento(
         ctx.directory,
@@ -380,6 +439,14 @@ export const generar_formulario = {
       let ruta: string;
       let formato: string;
 
+      const sinPlantilla =
+        (info.solicitud.formato === "xlsx" && !info.plantillaCeldas) || (info.solicitud.formato === "pdf" && !info.plantillaCampos);
+      if (sinPlantilla) {
+        const motivo = info.advertencias[0] ?? `el caso no trae la plantilla para el formato ${info.solicitud.formato}`;
+        logEvento(ctx.directory, args.caso, "proveedor_generar_formulario", false, motivo);
+        return fail(`No se pudo generar el formulario: ${motivo} Se puede continuar con el paquete y el reporte de faltantes.`);
+      }
+
       if (info.solicitud.formato === "xlsx") {
         ruta = await generarXlsx(ctx.directory, args.caso, info, args.mapeo);
         formato = "xlsx";
@@ -387,11 +454,17 @@ export const generar_formulario = {
         ruta = await generarPdf(ctx.directory, args.caso, info, args.mapeo);
         formato = "pdf";
       } else {
+        // HU-3 P2: portal (u otro formato) no se automatiza: valores para copiar.
         ruta = generarValoresPortal(ctx.directory, args.caso, info, args.mapeo);
-        formato = "portal (no soportado — valores para copiar)";
+        formato = info.solicitud.formato;
       }
 
-      const data = { ruta: path.relative(ctx.directory, ruta), formato };
+      const soportado = formato === "xlsx" || formato === "pdf";
+      const data = {
+        ruta: path.relative(ctx.directory, ruta),
+        formato,
+        ...(soportado ? {} : { soportado: false, mensaje: `formato no soportado (${formato}): se generaron los valores listos para copiar en ${path.relative(ctx.directory, ruta)}` }),
+      };
       logEvento(ctx.directory, args.caso, "proveedor_generar_formulario", true, `formato ${formato} en ${data.ruta}`);
       return ok(data);
     } catch (e) {
@@ -408,7 +481,7 @@ export const generar_formulario = {
 
 export const armar_paquete = {
   description:
-    "Arma el paquete para firma: formulario, copias de soportes vigentes, checklist de soportes y borrador de correo. Bloquea listo_para_firma si falta o está vencido un soporte exigido.",
+    "Arma el paquete para firma (formulario, copias de los soportes exigidos, checklist y borrador de correo); un soporte vencido o ausente bloquea listo_para_firma.",
   args: {
     caso: z.string().describe("Nombre de la carpeta del caso"),
   },
@@ -434,34 +507,50 @@ export const armar_paquete = {
 
       for (const tipo of info.soportesExigidos) {
         const soporte = indexSoportes.find((s) => s.tipo === tipo);
-        if (!soporte) {
+        const origen = soporte ? path.join(REPO_ROOT(ctx.directory), "soportes", soporte.archivo) : "";
+        if (!soporte || !fs.existsSync(origen)) {
           filasChecklist.push(`- ❌ **${tipo}**: ausente — no existe en el repositorio de soportes.`);
           bloqueaFirma = true;
           continue;
         }
-        // La vigencia es inclusiva: el documento vale todo el día "vigencia_hasta".
+        // HU-4: se copian todos los soportes exigidos que existan; el
+        // checklist marca cuáles están vencidos. La vigencia es inclusiva.
+        fs.copyFileSync(origen, path.join(paqueteDir, soporte.archivo));
         const vencido = soporte.vigencia_hasta ? new Date(soporte.vigencia_hasta + "T23:59:59Z") < hoy : false;
         if (vencido) {
           filasChecklist.push(`- ⚠️ **${tipo}**: vencido (vigente hasta ${soporte.vigencia_hasta}).`);
           bloqueaFirma = true;
         } else {
           filasChecklist.push(`- ✅ **${tipo}**: presente${soporte.vigencia_hasta ? ` (vigente hasta ${soporte.vigencia_hasta})` : ""}.`);
-          const origen = path.join(REPO_ROOT(ctx.directory), "soportes", soporte.archivo);
-          if (fs.existsSync(origen)) {
-            fs.copyFileSync(origen, path.join(paqueteDir, soporte.archivo));
-          }
         }
       }
 
-      const formularioPath = path.join(outDir, info.solicitud.formato === "pdf" ? "formulario.pdf" : "formulario.xlsx");
-      if (fs.existsSync(formularioPath)) {
-        fs.copyFileSync(formularioPath, path.join(paqueteDir, path.basename(formularioPath)));
+      // El formulario generado (xlsx, pdf o valores para portal) va al paquete.
+      for (const nombre of ["formulario.xlsx", "formulario.pdf", "valores-portal.md"]) {
+        const f = path.join(outDir, nombre);
+        if (fs.existsSync(f)) fs.copyFileSync(f, path.join(paqueteDir, nombre));
       }
 
+      // RN3: un campo faltante NO bloquea la firma, pero aparece en el checklist.
+      const mapeo = mapearEtiquetas(ctx.directory, info.solicitud.pais, listaEtiquetas(info));
+      const filasCampos = [
+        ...mapeo.faltantes.map((f) => `- ❌ **${f}**: faltante — no existe en el repositorio maestro (completar a mano).`),
+        ...mapeo.requiere_confirmacion.map((r) => `- ⚠️ **${r.etiqueta}**: requiere confirmación — ${r.motivo}.`),
+      ];
+
       const checklistMd = [
-        `# Checklist de soportes — ${info.solicitud.cliente}`,
+        `# Checklist del paquete — ${info.solicitud.cliente}`,
+        "",
+        `Fecha de evaluación de vigencias: ${hoy.toISOString().slice(0, 10)}`,
+        "",
+        "## Soportes exigidos",
         "",
         ...filasChecklist,
+        "",
+        "## Campos del formulario pendientes (no bloquean la firma)",
+        "",
+        ...(filasCampos.length ? filasCampos : ["- Ninguno: todos los campos se llenaron desde el repositorio maestro."]),
+        ...(info.advertencias.length ? ["", "## Advertencias", "", ...info.advertencias.map((a) => `- ${a}`)] : []),
         "",
         `**Estado:** ${bloqueaFirma ? "NO listo para firma (hay soportes ausentes o vencidos)" : "listo para firma"}`,
       ].join("\n");
@@ -486,6 +575,8 @@ export const armar_paquete = {
         ruta: path.relative(ctx.directory, paqueteDir),
         listo_para_firma: !bloqueaFirma,
         checklist: filasChecklist,
+        campos_faltantes: mapeo.faltantes,
+        campos_por_confirmar: mapeo.requiere_confirmacion.map((r) => r.etiqueta),
       };
       logEvento(ctx.directory, args.caso, "proveedor_armar_paquete", true, `listo_para_firma=${!bloqueaFirma}`);
       return ok(data);

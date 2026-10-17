@@ -11,10 +11,12 @@
 
 import { describe, test, expect, beforeAll } from "bun:test";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import ExcelJS from "exceljs";
 import { herramientas } from "../src/tools/proveedor.ts";
 import { correrTurno, detectaNecesitaConfirmacion, esConfirmacionExplicita } from "../src/agent.ts";
+import { AdaptadorAnthropic, ErrorProveedorLLM } from "../src/llm/anthropic.ts";
 import type { AdaptadorLLM, Mensaje, RespuestaModelo } from "../src/llm/adapter.ts";
 
 const DIR = path.resolve(import.meta.dir, "..");
@@ -26,16 +28,38 @@ const CASOS = ["co-industrias-delta", "ec-corp-andina", "hn-agroexport-sula", "p
 // Fecha fija: los resultados no dependen del día en que se corran las pruebas.
 process.env.FECHA_REFERENCIA = "2026-10-15";
 
-const h = herramientas as unknown as Record<string, { execute: (a: any, c: typeof ctx) => Promise<string> }>;
-const run = async (nombre: string, args: unknown) => JSON.parse(await h[nombre].execute(args, ctx));
-const getByPath = (obj: any, ruta: string) => ruta.split(".").reduce((o, k) => o?.[k], obj);
+// Tipos de las respuestas de las herramientas (contrato del PRD §6.2).
+type Lleno = { etiqueta: string; ruta: string; valor: unknown };
+type PorConfirmar = { etiqueta: string; motivo: string; valor_propuesto?: unknown };
+type Mapeo = { llenos: Lleno[]; faltantes: string[]; requiere_confirmacion: PorConfirmar[] };
+type Datos = {
+  pais: string;
+  formato: string;
+  campos: Array<{ etiqueta: string; ambiguo: boolean; nota?: string }>;
+  soportes: string[];
+  advertencias?: string[];
+  ruta: string;
+  soportado?: boolean;
+  mensaje?: string;
+  listo_para_firma: boolean;
+  checklist: string[];
+  campos_faltantes: string[];
+  campos_por_confirmar: string[];
+} & Mapeo;
+type Respuesta = { ok: boolean; data: Datos; error?: string };
+type Ctx = { directory: string; sessionId: string };
 
-type Proc = { solicitud: any; mapeo: any; formulario: any; paquete: any };
+const h = herramientas as unknown as Record<string, { execute: (a: unknown, c: Ctx) => Promise<string> }>;
+const run = async (nombre: string, args: unknown, c: Ctx = ctx): Promise<Respuesta> => JSON.parse(await h[nombre].execute(args, c));
+const getByPath = (obj: unknown, ruta: string): unknown =>
+  ruta.split(".").reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), obj);
+
+type Proc = { solicitud: Respuesta; mapeo: Respuesta; formulario: Respuesta; paquete: Respuesta };
 const procesados: Record<string, Proc> = {};
 
 async function procesar(caso: string): Promise<Proc> {
   const solicitud = await run("proveedor_leer_solicitud", { caso });
-  const mapeo = await run("proveedor_mapear_campos", { caso, campos: solicitud.data.campos.map((c: any) => c.etiqueta) });
+  const mapeo = await run("proveedor_mapear_campos", { caso, campos: solicitud.data.campos.map((c) => c.etiqueta) });
   const formulario = await run("proveedor_generar_formulario", { caso, mapeo: mapeo.data });
   const paquete = await run("proveedor_armar_paquete", { caso });
   return { solicitud, mapeo, formulario, paquete };
@@ -95,7 +119,7 @@ describe("HU-2 · Mapear campos al maestro", () => {
 // ---------------------------------------------------------------------------
 describe("RN · Identificador tributario por país", () => {
   test("CO: el NIT se llena directo del maestro", () => {
-    const nit = procesados["co-industrias-delta"].mapeo.data.llenos.find((l: any) => l.etiqueta === "NIT");
+    const nit = procesados["co-industrias-delta"].mapeo.data.llenos.find((l) => l.etiqueta === "NIT");
     expect(nit?.valor).toBe(maestro.nit);
   });
   test.each([
@@ -104,11 +128,11 @@ describe("RN · Identificador tributario por país", () => {
     ["hn-agroexport-sula", "RTN"],
   ])("%s: %s extranjero → requiere_confirmacion, nunca lleno en silencio", (caso, etiqueta) => {
     const d = procesados[caso].mapeo.data;
-    expect(d.llenos.some((l: any) => l.etiqueta === etiqueta)).toBe(false);
-    const rc = d.requiere_confirmacion.find((r: any) => r.etiqueta === etiqueta);
+    expect(d.llenos.some((l) => l.etiqueta === etiqueta)).toBe(false);
+    const rc = d.requiere_confirmacion.find((r) => r.etiqueta === etiqueta);
     expect(rc).toBeTruthy();
-    expect(rc.valor_propuesto).toBe(maestro.nit);
-    expect(rc.motivo.length).toBeGreaterThan(10);
+    expect(rc?.valor_propuesto).toBe(maestro.nit);
+    expect(rc?.motivo).toMatch(/identificador extranjero/);
   });
 });
 
@@ -134,7 +158,7 @@ describe("HU-3 · Generar el formulario en el formato pedido", () => {
       const hoja = wb.getWorksheet(c.hoja)!;
       expect(hoja).toBeTruthy();
       expect(hoja.getCell(c.celda_etiqueta).value).toBe(c.etiqueta);
-      const lleno = d.llenos.find((l: any) => l.etiqueta === c.etiqueta);
+      const lleno = d.llenos.find((l) => l.etiqueta === c.etiqueta);
       const valor = String(hoja.getCell(c.celda_valor).value);
       // Los números se escriben con separador de miles (98.000.000.000).
       if (lleno) expect(valor.replace(/\./g, "")).toBe(String(lleno.valor).replace(/\./g, ""));
@@ -182,10 +206,23 @@ describe("HU-4 · Paquete para firma", () => {
     await run("proveedor_armar_paquete", { caso: "co-industrias-delta" });
   });
 
-  test("solo se copian al paquete los soportes vigentes", () => {
+  test("el paquete trae copia de todos los soportes exigidos que existen (también los vencidos, marcados en el checklist)", () => {
     const dir = path.join(DIR, "out", "co-industrias-delta", "paquete");
-    expect(fs.existsSync(path.join(dir, "camara-comercio-2026-08.txt"))).toBe(false);
-    expect(fs.existsSync(path.join(dir, "rut-2026.txt"))).toBe(true);
+    for (const f of ["camara-comercio-2026-08.txt", "rut-2026.txt", "certificacion-bancaria-2026-08.txt", "estados-financieros-2025.txt", "formulario.xlsx"]) {
+      expect(fs.existsSync(path.join(dir, f))).toBe(true);
+    }
+    // no se copian soportes que el cliente no pidió
+    expect(fs.existsSync(path.join(dir, "iso-9001-2025.txt"))).toBe(false);
+    expect(fs.existsSync(path.join(DIR, "out", "pa-logistica-istmo", "paquete", "valores-portal.md"))).toBe(true);
+    expect(fs.existsSync(path.join(DIR, "out", "ec-corp-andina", "paquete", "formulario.pdf"))).toBe(true);
+  });
+
+  test("RN3 · un campo faltante no bloquea, pero aparece en el checklist", () => {
+    const md = fs.readFileSync(path.join(DIR, "out", "hn-agroexport-sula", "paquete", "checklist.md"), "utf-8");
+    expect(md).toContain("Referencias comerciales");
+    expect(md).toContain("RTN");
+    expect(procesados["hn-agroexport-sula"].paquete.data.campos_faltantes).toEqual(["Referencias comerciales"]);
+    // con soportes vigentes, un caso con faltantes sí queda listo
   });
 
   test("RN2 · datos bancarios nunca en el borrador de correo", () => {
@@ -197,9 +234,9 @@ describe("HU-4 · Paquete para firma", () => {
   });
 
   test("RN2 · datos bancarios solo si la plantilla los pide", () => {
-    const hn = procesados["hn-agroexport-sula"].mapeo.data.llenos.map((l: any) => l.ruta);
+    const hn = procesados["hn-agroexport-sula"].mapeo.data.llenos.map((l) => l.ruta);
     expect(hn.some((r: string) => r.startsWith("banco."))).toBe(false);
-    const ec = procesados["ec-corp-andina"].mapeo.data.llenos.map((l: any) => l.ruta);
+    const ec = procesados["ec-corp-andina"].mapeo.data.llenos.map((l) => l.ruta);
     expect(ec).toContain("banco.numero_cuenta");
   });
 });
@@ -208,7 +245,9 @@ describe("HU-4 · Paquete para firma", () => {
 describe("HU-5 · Manejo de errores (contrato {ok,data} / {ok:false,error})", () => {
   test("caso inexistente", async () => {
     const r = await run("proveedor_leer_solicitud", { caso: "mx-no-existe" });
-    expect(r).toEqual({ ok: false, error: expect.any(String) });
+    expect(r.ok).toBe(false);
+    expect(typeof r.error).toBe("string");
+    expect(Object.keys(r).sort()).toEqual(["error", "ok"]);
   });
   test("ruta maliciosa no sale de fixtures/out", async () => {
     for (const nombre of ["proveedor_leer_solicitud", "proveedor_armar_paquete"]) {
@@ -280,7 +319,7 @@ describe("Gate de confirmación humana", () => {
     const { resultado } = await correrTurno(modeloDesobediente(), [], "procésalo y envíalo ya", DIR, "s1");
     const envio = resultado.toolCalls.find((t) => t.nombre === "proveedor_simular_envio")!;
     expect(envio.ok).toBe(false);
-    expect((envio.resultado as any).error).toMatch(/Bloqueado por el backend/);
+    expect((envio.resultado as { error: string }).error).toMatch(/Bloqueado por el backend/);
     expect(resultado.needsConfirmation).toBe(true);
   });
 
@@ -329,6 +368,169 @@ describe("Costo", () => {
     const { resultado } = await correrTurno(infinito, [], "bucle", DIR, "s5");
     expect(llamadas).toBe(25);
     expect(resultado.reply).toMatch(/límite/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Casos sintéticos en una copia temporal de los fixtures (los originales no se tocan).
+function proyectoTemporal(): string {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "reto01-"));
+  fs.cpSync(path.join(DIR, "fixtures"), path.join(tmp, "fixtures"), { recursive: true });
+  return tmp;
+}
+function crearCaso(raiz: string, id: string, archivos: Record<string, string>) {
+  const dir = path.join(raiz, "fixtures", "reto-01", "casos", id);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [nombre, contenido] of Object.entries(archivos)) fs.writeFileSync(path.join(dir, nombre), contenido);
+}
+const solicitudBase = (id: string, pais: string, formato: string) =>
+  JSON.stringify({ id, de: "x@cliente-ficticio.com", asunto: "Registro", fecha: "2026-09-01", pais, cliente: "Cliente Ficticio", cuerpo: "", formato, adjuntos: [] });
+
+describe("HU-1 / HU-5 · Casos límite (fixtures sintéticos)", () => {
+  test("etiqueta ambigua 'Identificación tributaria' → requiere_confirmacion proponiendo el equivalente del país (CO → NIT)", async () => {
+    const raiz = proyectoTemporal();
+    crearCaso(raiz, "co-ambiguo", {
+      "solicitud.json": solicitudBase("co-ambiguo", "CO", "pdf"),
+      "plantilla-campos.json": JSON.stringify([{ etiqueta: "Razón social", obligatorio: true }, { etiqueta: "Identificación tributaria", obligatorio: true }]),
+      "soportes-exigidos.json": JSON.stringify(["rut"]),
+    });
+    const c = { directory: raiz, sessionId: "t" };
+    const leido = await run("proveedor_leer_solicitud", { caso: "co-ambiguo" }, c);
+    const campo = leido.data.campos.find((x) => x.etiqueta === "Identificación tributaria")!;
+    expect(campo.ambiguo).toBe(true);
+    expect(campo.nota).toContain("NIT");
+    const mapeo = await run("proveedor_mapear_campos", { caso: "co-ambiguo", campos: ["Razón social", "Identificación tributaria"] }, c);
+    expect(mapeo.data.llenos.map((l) => l.etiqueta)).toEqual(["Razón social"]);
+    expect(mapeo.data.requiere_confirmacion[0].motivo).toMatch(/ambiguo.*NIT/);
+    expect(mapeo.data.requiere_confirmacion[0].valor_propuesto).toBe(maestro.nit);
+  });
+
+  test("plantilla corrupta: mensaje claro y el proceso sigue (paquete y faltantes)", async () => {
+    const raiz = proyectoTemporal();
+    crearCaso(raiz, "co-corrupto", {
+      "solicitud.json": solicitudBase("co-corrupto", "CO", "xlsx"),
+      "plantilla-celdas.json": "{ esto no es json",
+      "soportes-exigidos.json": JSON.stringify(["rut", "camara_comercio"]),
+    });
+    const c = { directory: raiz, sessionId: "t" };
+    const leido = await run("proveedor_leer_solicitud", { caso: "co-corrupto" }, c);
+    expect(leido.ok).toBe(true);
+    expect(leido.data.advertencias?.[0]).toMatch(/plantilla-celdas\.json.*corrupto/);
+    const gen = await run("proveedor_generar_formulario", { caso: "co-corrupto", mapeo: { llenos: [], faltantes: [], requiere_confirmacion: [] } }, c);
+    expect(gen.ok).toBe(false);
+    expect(gen.error).toMatch(/No se pudo generar el formulario/);
+    expect(gen.error).not.toMatch(/SyntaxError|at /);
+    const paquete = await run("proveedor_armar_paquete", { caso: "co-corrupto" }, c);
+    expect(paquete.ok).toBe(true);
+    expect(fs.readFileSync(path.join(raiz, "out", "co-corrupto", "paquete", "checklist.md"), "utf-8")).toContain("corrupto");
+  });
+
+  test("solicitud corrupta: error claro, sin traza", async () => {
+    const raiz = proyectoTemporal();
+    crearCaso(raiz, "co-roto", { "solicitud.json": "<<<" });
+    const r = await run("proveedor_leer_solicitud", { caso: "co-roto" }, { directory: raiz, sessionId: "t" });
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/solicitud\.json.*corrupto/);
+  });
+
+  test("soporte exigido que no existe en el repositorio → ausente y bloquea", async () => {
+    const raiz = proyectoTemporal();
+    crearCaso(raiz, "co-sin-soporte", {
+      "solicitud.json": solicitudBase("co-sin-soporte", "CO", "pdf"),
+      "plantilla-campos.json": JSON.stringify([{ etiqueta: "NIT", obligatorio: true }]),
+      "soportes-exigidos.json": JSON.stringify(["rut", "poliza_inexistente"]),
+    });
+    const r = await run("proveedor_armar_paquete", { caso: "co-sin-soporte" }, { directory: raiz, sessionId: "t" });
+    expect(r.data.listo_para_firma).toBe(false);
+    expect(r.data.checklist.join("\n")).toMatch(/poliza_inexistente\*\*: ausente/);
+  });
+
+  test("HU-3 P2: portal responde 'formato no soportado' y deja valores para copiar", () => {
+    const f = procesados["pa-logistica-istmo"].formulario.data;
+    expect(f.formato).toBe("portal");
+    expect(f.soportado).toBe(false);
+    expect(f.mensaje).toMatch(/formato no soportado/);
+  });
+
+  test("RN3: con soportes vigentes, un caso con campo faltante SÍ queda listo para firma", async () => {
+    const prev = process.env.FECHA_REFERENCIA;
+    process.env.FECHA_REFERENCIA = "2026-08-15";
+    const r = await run("proveedor_armar_paquete", { caso: "hn-agroexport-sula" });
+    process.env.FECHA_REFERENCIA = prev;
+    expect(r.data.campos_faltantes.length).toBe(1);
+    expect(r.data.listo_para_firma).toBe(true);
+    await run("proveedor_armar_paquete", { caso: "hn-agroexport-sula" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("CA4 / RN5 · Registro de llamadas", () => {
+  test("out/<caso>/log.jsonl con { ts, herramienta, ok, resumen } y out/log.jsonl global", () => {
+    const lineas = fs.readFileSync(path.join(DIR, "out", "ec-corp-andina", "log.jsonl"), "utf-8").trim().split("\n").map((l) => JSON.parse(l));
+    expect(lineas.length).toBeGreaterThanOrEqual(4);
+    for (const l of lineas) expect(Object.keys(l).sort()).toEqual(["herramienta", "ok", "resumen", "ts"]);
+    const global = fs.readFileSync(path.join(DIR, "out", "log.jsonl"), "utf-8");
+    for (const c of CASOS) expect(global).toContain(`"caso":"${c}"`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("CA5 / Robustez · Proveedor LLM", () => {
+  test("timeout o caída del proveedor → ErrorProveedorLLM con mensaje claro", async () => {
+    const fetchOriginal = globalThis.fetch;
+    process.env.ANTHROPIC_API_KEY ??= "clave-de-prueba";
+    globalThis.fetch = (async () => {
+      throw Object.assign(new Error("The operation timed out."), { name: "TimeoutError" });
+    }) as unknown as typeof fetch;
+    try {
+      const adaptador = new AdaptadorAnthropic({ modelo: "modelo-de-prueba" });
+      await expect(adaptador.enviar([{ rol: "user", contenido: [{ tipo: "texto", texto: "hola" }] }], "sistema", [])).rejects.toBeInstanceOf(ErrorProveedorLLM);
+      await adaptador.enviar([{ rol: "user", contenido: [{ tipo: "texto", texto: "hola" }] }], "sistema", []).catch((e: ErrorProveedorLLM) => {
+        expect(e.mensajeUsuario).toMatch(/tardó más de/);
+      });
+    } finally {
+      globalThis.fetch = fetchOriginal;
+    }
+  });
+
+  test("la clave nunca aparece en el mensaje de error", async () => {
+    const fetchOriginal = globalThis.fetch;
+    process.env.ANTHROPIC_API_KEY = "sk-secreta-de-prueba";
+    globalThis.fetch = (async () => new Response("{\"error\":\"invalid x-api-key\"}", { status: 401 })) as unknown as typeof fetch;
+    try {
+      const adaptador = new AdaptadorAnthropic();
+      const e = await adaptador.enviar([{ rol: "user", contenido: [{ tipo: "texto", texto: "hola" }] }], "s", []).catch((x: ErrorProveedorLLM) => x);
+      expect(e).toBeInstanceOf(ErrorProveedorLLM);
+      expect((e as ErrorProveedorLLM).mensajeUsuario).not.toContain("sk-secreta");
+      expect((e as ErrorProveedorLLM).message).not.toContain("sk-secreta");
+    } finally {
+      globalThis.fetch = fetchOriginal;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("Bonus 9.4 · modulo/ usa las mismas piezas que la aplicación", () => {
+  const cuerpo = (p: string) => fs.readFileSync(p, "utf-8").replace(/^---\n[\s\S]*?\n---\n/, "").trim();
+  const frontmatter = (p: string) => fs.readFileSync(p, "utf-8").match(/^---\n([\s\S]*?)\n---/)?.[1] ?? "";
+
+  test("tools/proveedor.ts idéntico a src/tools/proveedor.ts", () => {
+    expect(fs.readFileSync(path.join(DIR, "modulo", "tools", "proveedor.ts"), "utf-8")).toBe(fs.readFileSync(path.join(DIR, "src", "tools", "proveedor.ts"), "utf-8"));
+  });
+  test("agent.md: frontmatter requerido y cuerpo = agent/prompt.md", () => {
+    const p = path.join(DIR, "modulo", "agent.md");
+    const fm = frontmatter(p);
+    expect(fm).toMatch(/description:/);
+    expect(fm).toMatch(/mode: primary/);
+    expect(fm).toMatch(/edit: deny/);
+    expect(fm).toMatch(/bash: deny/);
+    expect(cuerpo(p)).toBe(fs.readFileSync(path.join(DIR, "agent", "prompt.md"), "utf-8").trim());
+  });
+  test("SKILL.md: frontmatter name/description y cuerpo = src/knowledge/registro-proveedor.md", () => {
+    const p = path.join(DIR, "modulo", "skill", "registro-proveedor", "SKILL.md");
+    expect(frontmatter(p)).toMatch(/name: registro-proveedor/);
+    expect(frontmatter(p)).toMatch(/description:/);
+    expect(cuerpo(p)).toBe(fs.readFileSync(path.join(DIR, "src", "knowledge", "registro-proveedor.md"), "utf-8").trim());
   });
 });
 

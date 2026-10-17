@@ -5,7 +5,13 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { AdaptadorAnthropic } from "./llm/anthropic.ts";
+import { AdaptadorAnthropic, ErrorProveedorLLM } from "./llm/anthropic.ts";
+
+// CA5: mensaje claro para el chat; el detalle técnico solo va al log del servidor.
+function mensajeDeError(e: unknown): string {
+  if (e instanceof ErrorProveedorLLM) return e.mensajeUsuario;
+  return "El agente no pudo responder (error con el proveedor del modelo). Intenta de nuevo en un momento.";
+}
 import { correrTurno, type EventoEnVivo } from "./agent.ts";
 import type { Mensaje } from "./llm/adapter.ts";
 
@@ -146,7 +152,7 @@ const server = Bun.serve({
         return json({ sessionId: p.sessionId, ...resultado });
       } catch (e) {
         console.error("Error en /api/chat:", e instanceof Error ? e.message : e);
-        return json({ ok: false, error: "El agente no pudo responder (error con el proveedor del modelo). Intenta de nuevo en un momento." }, 500);
+        return json({ ok: false, error: mensajeDeError(e) }, 500);
       }
     }
 
@@ -165,7 +171,7 @@ const server = Bun.serve({
             enviar({ tipo: "fin", sessionId: p.sessionId, ...resultado });
           } catch (e) {
             console.error("Error en /api/chat/stream:", e instanceof Error ? e.message : e);
-            enviar({ tipo: "error", error: "El agente no pudo responder (error con el proveedor del modelo). Intenta de nuevo en un momento." });
+            enviar({ tipo: "error", error: mensajeDeError(e) });
           }
           controller.close();
         },

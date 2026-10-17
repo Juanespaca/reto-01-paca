@@ -48,7 +48,7 @@ Implementado en `src/agent.ts::correrTurno`:
    front) y en `out/<caso>/log.jsonl`, y su resultado se agrega al historial
    como `tool_result`.
 4. Se repite desde el paso 2 hasta que el modelo responda solo con texto
-   (fin del turno) o se alcance el **tope de 25 iteraciones** (`TOPE_ITERACIONES`
+   (fin del turno) o se alcance el **tope de iteraciones** (25 por defecto, configurable con `TOPE_ITERACIONES`;
    en `agent.ts`), caso en el que se le avisa al usuario qué se alcanzó a
    hacer.
 5. **Confirmación humana**: el prompt instruye al modelo a no llamar
@@ -169,6 +169,19 @@ para una fase futura:
    reproducibles. La vigencia es inclusiva: un soporte vale todo el día de
    `vigencia_hasta`.
 
+### Dependencias (PRD §8)
+
+| Dependencia | Para qué | Por qué esta |
+|---|---|---|
+| `zod` | Esquemas de los argumentos de las herramientas y validación antes de ejecutar | Obligatoria por el PRD |
+| `zod-to-json-schema` | Convertir los esquemas zod al JSON Schema que espera el modelo | Evita mantener dos definiciones de cada herramienta |
+| `exceljs` | Escribir `formulario.xlsx` en la hoja y celda exactas de la plantilla | Maneja hojas y celdas por dirección (`C3`) sin dependencias nativas |
+| `pdf-lib` | Generar `formulario.pdf` | Puro TypeScript; también sirve para rellenar AcroForms reales en una fase posterior |
+| `typescript`, `bun-types`, `@types/node` (dev) | Tipado estricto y `tsc --noEmit` | Solo desarrollo |
+
+No se usa el SDK de Anthropic (trade-off 1) ni framework web: Bun sirve el
+API y el front con `Bun.serve`.
+
 ## 7. Supuestos
 
 - Los fixtures representan la variabilidad real de los clientes (el PRD lo
@@ -183,6 +196,16 @@ para una fase futura:
   como `faltante` aunque sea opcional en la plantilla — el PRD no distingue
   faltantes obligatorios de opcionales para esta regla, así que se optó por
   ser explícito siempre y dejar que el humano decida si importa.
+- "Copias de los soportes exigidos que existan" (HU-4) se interpreta
+  literalmente: al paquete van todos los soportes exigidos que están en el
+  repositorio, incluidos los vencidos, y `checklist.md` marca cuáles están
+  vencidos o ausentes. Así la analista ve el documento que debe renovar.
+- Las etiquetas tributarias genéricas ("Identificación tributaria",
+  "Número de identificación fiscal") siempre quedan `requiere_confirmacion`
+  con el equivalente del país propuesto (NIT en CO), incluso para clientes
+  colombianos (HU-1). Una etiqueta explícita "NIT" en Colombia se llena directo.
+- "Fecha de ejecución" (HU-4) es la fecha del servidor; `FECHA_REFERENCIA`
+  permite fijarla para pruebas y demos.
 - El campo "País" cuando se pide como dato de Periferia se llena con el
   código ISO (`CO`) tal como está en el maestro, no con el nombre completo
   ("Colombia") — una mejora razonable sería formatearlo, pero no estaba en
@@ -199,25 +222,35 @@ para una fase futura:
 | HU-3 Generar formulario (portal) | Hecho (P2, diseño) | Solo diseño + valores para copiar, como pide el PRD; implementación real queda para una fase posterior (sección 5). |
 | HU-4 Armar paquete para firma | Hecho | Copia de soportes y checklist funcionan; en producción el "paquete" debería ser un adjunto real de correo, no una carpeta local. |
 | HU-4 Confirmación antes de enviar | Hecho | Triple gate (prompt + herramienta + backend) y botón explícito en la UI. En producción el OK debería quedar firmado con la identidad del usuario (auditoría), no solo en el historial de chat. |
-| HU-5 Manejo de errores | Hecho | Todas las herramientas devuelven `{ ok, data }` / `{ ok: false, error }`, nunca lanzan; probado con caso inexistente, rutas maliciosas (`../`) y argumentos inválidos (ver `tests/reto.test.ts`). |
+| HU-5 Manejo de errores | Hecho (plantilla corrupta, solicitud corrupta, caso inexistente, soporte ausente, formato no soportado, timeout del modelo) | Todas las herramientas devuelven `{ ok, data }` / `{ ok: false, error }`, nunca lanzan; probado con caso inexistente, rutas maliciosas (`../`) y argumentos inválidos (ver `tests/reto.test.ts`). |
 
 ## 9. Uso de IA
 
-Esta solución se construyó con **Claude** (Claude Code / Claude en modo
-agente, el mismo asistente con el que Periferia conversó este proceso),
-usado para:
-- Generar la estructura completa del proyecto (tools, adaptador LLM, ciclo
-  del agente, servidor, front, `demo.ts`) a partir de este PRD.
-- Redactar la documentación (`README.md`, este `SOLUCION.md`).
-- Verificar el comportamiento corriendo `demo.ts` contra los 4 fixtures
-  reales y ajustando la lógica de mapeo/vigencia de soportes hasta que el
-  resultado coincidiera con las reglas de negocio del PRD (identificadores
-  extranjeros, soportes vencidos).
+Asistente usado: **Claude** (Anthropic), en modo agente con acceso a
+terminal y navegador. Tareas:
 
-Se descartaron explícitamente estas sugerencias iniciales:
-- Usar el SDK oficial de Anthropic (ver trade-off #1: se prefirió fetch
+- **Construcción:** estructura del proyecto a partir del PRD
+  (herramientas, adaptador LLM, ciclo del agente, servidor, `demo.ts`) y
+  borradores de `README.md` y este documento.
+- **QA contra el PRD:** correr `demo.ts`, `tsc` y el agente con la API
+  real; revisar cada HU, RN y CA. Encontró y corrigió, entre otros: el gate
+  de confirmación que dependía solo del modelo, el tope de tokens que no se
+  contabilizaba, soportes viejos que quedaban en el paquete y rutas `../`
+  que se salían de `out/`. El detalle está en `QA.md`.
+- **Pruebas:** la suite `tests/reto.test.ts` (65 pruebas sin modelo, con
+  adaptadores simulados para el gate y los errores del proveedor).
+- **Front:** rediseño de `web/index.html` (pipeline en vivo, tarjetas de
+  herramientas, panel de resultado, confirmación con botones).
+- **Despliegue:** `Dockerfile` y publicación en Render.
+
+Se descartaron explícitamente estas sugerencias:
+- Usar el SDK oficial de Anthropic (trade-off #1: se prefirió fetch
   directo por transparencia).
 - Una base de datos SQLite para sesiones (el PRD la excluye como no-objetivo).
+- Copiar al paquete solo los soportes vigentes: se cambió para seguir el
+  texto de HU-4 (copias de los exigidos que existan, con vencidos marcados).
+- Un modo "demo sin clave" con modelo simulado en el despliegue: se dejó
+  solo en las pruebas para no confundir al evaluador sobre qué es real.
 
 El candidato (Juan Esteban Paca) puede explicar cada archivo y cada
 decisión de este documento. La solución se verificó de punta a punta con la
@@ -241,6 +274,6 @@ que el backend bloquea), además de `demo.ts` y `bun test`.
 | Qué | Cómo | Resultado |
 |---|---|---|
 | Lógica de negocio sin modelo | `bun run demo.ts` | 4 casos procesados; envío sin confirmar rechazado en los 4 |
-| Pruebas automáticas | `bun test` | 52 pruebas: HU-1..HU-5, NIT/RUC/RTN, valores solo del maestro, celdas del xlsx, vigencias, RN2, gate de confirmación con un modelo "desobediente", tope de iteraciones, conteo de tokens y determinismo |
+| Pruebas automáticas | `bun test` | 65 pruebas: HU-1..HU-5, RN1..RN5, CA1..CA5, campo ambiguo, plantilla y solicitud corruptas, soporte ausente, portal "formato no soportado", timeout del proveedor, clave fuera de los errores, módulo bonus idéntico a la app, conteo de tokens y determinismo |
 | Tipos | `bunx tsc --noEmit` | Sin errores en modo estricto |
 | Agente real | Link público con la API de Anthropic | Flujo de 5 pasos, resumen fiel a los fixtures, envío solo tras confirmación en turno aparte, caso negativo bloqueado |

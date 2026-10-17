@@ -24,6 +24,8 @@ backend en el mismo proceso, mismo puerto).
 | `ANTHROPIC_MODEL` | No | Modelo a usar (default `claude-sonnet-5`). |
 | `PORT` | No | Puerto del servidor (default `3000`). |
 | `TOPE_TOKENS_SESION` | No | Tope de tokens acumulados por sesión antes de bloquear nuevas llamadas al modelo (default `200000`). |
+| `TOPE_ITERACIONES` | No | Tope de iteraciones herramienta → modelo por turno (default `25`). |
+| `LLM_TIMEOUT_MS` | No | Timeout de cada llamada al modelo; al vencerse el chat muestra un mensaje claro (default `60000`). |
 | `FECHA_REFERENCIA` | No | Fecha `AAAA-MM-DD` contra la que se evalúa la vigencia de los soportes (default: hoy). Sirve para demos y pruebas reproducibles. |
 
 ## Cómo correr `demo.ts` (verificación sin modelo)
@@ -41,7 +43,7 @@ produciría el agente conversacional.
 ## Pruebas automáticas
 
 ```bash
-bun test          # 52 pruebas: HU-1..HU-5, reglas por país, RN2, gate de confirmación, costo y determinismo
+bun test          # 65 pruebas: HU-1..HU-5, RN1..RN5, CA1..CA5, casos límite, bonus 9.4, costo y determinismo
 bunx tsc --noEmit # TypeScript estricto
 ```
 
@@ -52,6 +54,17 @@ un modelo simulado "desobediente" que siempre intenta enviar.
 
 **https://reto-01-paca.onrender.com** (plan gratuito de Render: la primera
 visita después de un rato sin uso puede tardar ~50 s mientras el servidor despierta).
+**Acceso:** público, sin usuario ni clave.
+
+Prompt de la demo (PRD §11), en una sesión nueva:
+
+```
+Procesa el caso "ec-corp-andina". Dime qué campos quedaron llenos, cuáles
+faltan, si el paquete está listo para firma y qué soportes debo actualizar.
+No envíes nada todavía.
+```
+
+Luego, en un segundo mensaje: `envía`.
 
 ## Frontend
 

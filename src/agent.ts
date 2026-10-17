@@ -10,9 +10,10 @@ import path from "node:path";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod";
 import type { AdaptadorLLM, Mensaje, DefinicionHerramienta, ContenidoMensaje } from "./llm/adapter.ts";
-import { herramientas } from "./tools/proveedor.ts";
+import { herramientas, logEvento } from "./tools/proveedor.ts";
 
-const TOPE_ITERACIONES = 25;
+// CA1 / Costo: tope de iteraciones herramienta → modelo por turno (configurable).
+const TOPE_ITERACIONES = Math.max(1, Number(process.env.TOPE_ITERACIONES ?? 25) || 25);
 
 type Herramienta = (typeof herramientas)[keyof typeof herramientas];
 
@@ -156,8 +157,14 @@ export async function correrTurno(
     const resultadosHerramienta: ContenidoMensaje[] = [];
     for (const llamada of llamadas) {
       onEvento?.({ tipo: "herramienta_inicio", nombre: llamada.nombre, args: llamada.args });
+      const bloqueado = llamada.nombre === "proveedor_simular_envio" && !envioAutorizado;
+      if (bloqueado) {
+        // CA4 / RN5: el intento bloqueado también queda registrado.
+        const caso = (llamada.args as { caso?: unknown })?.caso;
+        logEvento(directorioProyecto, typeof caso === "string" ? caso : "_invalido", llamada.nombre, false, "bloqueado por el backend: sin confirmación explícita en turno aparte");
+      }
       const resultadoCrudo =
-        llamada.nombre === "proveedor_simular_envio" && !envioAutorizado
+        bloqueado
           ? JSON.stringify({
               ok: false,
               error:
