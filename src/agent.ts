@@ -10,7 +10,7 @@ import path from "node:path";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod";
 import type { AdaptadorLLM, Mensaje, DefinicionHerramienta, ContenidoMensaje } from "./llm/adapter.ts";
-import { herramientas, logEvento } from "./tools/proveedor.ts";
+import { herramientas, logEvento, fechaReferencia } from "./tools/proveedor.ts";
 
 // CA1 / Costo: tope de iteraciones herramienta → modelo por turno (configurable).
 const TOPE_ITERACIONES = Math.max(1, Number(process.env.TOPE_ITERACIONES ?? 25) || 25);
@@ -40,6 +40,12 @@ function cargarSystemPrompt(): string {
 }
 
 const SYSTEM_PROMPT = cargarSystemPrompt();
+
+// El modelo no conoce la fecha real: se la damos en cada llamada para que no
+// dude de las vigencias que calcula la herramienta.
+function systemPromptConFecha(): string {
+  return `${SYSTEM_PROMPT}\n\n---\n\nFecha de hoy (contra la que se evalúan las vigencias): ${fechaReferencia().toISOString().slice(0, 10)}.`;
+}
 
 export type EventoToolCall = {
   nombre: string;
@@ -132,7 +138,7 @@ export async function correrTurno(
   const uso = { tokens_entrada: 0, tokens_salida: 0 };
 
   for (let iteracion = 0; iteracion < TOPE_ITERACIONES; iteracion++) {
-    const respuesta = await adaptador.enviar(historialLocal, SYSTEM_PROMPT, DEFINICIONES_HERRAMIENTAS);
+    const respuesta = await adaptador.enviar(historialLocal, systemPromptConFecha(), DEFINICIONES_HERRAMIENTAS);
 
     historialLocal.push({ rol: "assistant", contenido: respuesta.contenido });
     uso.tokens_entrada += respuesta.uso?.tokens_entrada ?? 0;

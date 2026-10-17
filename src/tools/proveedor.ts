@@ -574,6 +574,7 @@ export const armar_paquete = {
       const data = {
         ruta: path.relative(ctx.directory, paqueteDir),
         listo_para_firma: !bloqueaFirma,
+        fecha_evaluacion: hoy.toISOString().slice(0, 10),
         checklist: filasChecklist,
         campos_faltantes: mapeo.faltantes,
         campos_por_confirmar: mapeo.requiere_confirmacion.map((r) => r.etiqueta),
