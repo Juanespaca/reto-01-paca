@@ -1,0 +1,23 @@
+{
+  "name": "reto-01-registro-proveedor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Agente conversacional para automatizar el registro de Periferia IT Group como proveedor ante clientes.",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "start": "bun run src/server.ts",
+    "demo": "bun run demo.ts"
+  },
+  "dependencies": {
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.23.5",
+    "exceljs": "^4.4.0",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "bun-types": "^1.1.38",
+    "typescript": "^5.6.3"
+  }
+}
