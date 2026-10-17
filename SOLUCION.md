@@ -83,13 +83,29 @@ Implementado en `src/agent.ts::correrTurno`:
   que su comportamiento con tool-use ya estaba validado end-to-end durante
   el desarrollo.
 
-**Costo estimado por caso procesado:** un caso completo ("procesa el caso
-X") toma ~4 llamadas a herramienta en 1-2 turnos del modelo: ronda de
-tool-use más ronda de respuesta final. Con prompts de ~1.5–2K tokens de
-entrada (system + conocimiento + historial corto) y ~300–500 tokens de
-salida por turno, un caso completo ronda los 4K–6K tokens totales. A precio
-de Claude Sonnet (orden de USD 3 / millón tokens entrada, USD 15 / millón
-salida), el costo por caso procesado es del orden de **USD 0.01–0.02**.
+**Costo medido por caso procesado (despliegue real, `claude-sonnet-5`):**
+el consumo se mide en vivo (el front muestra los tokens de la sesión). En la
+prueba sobre el link público:
+
+| Turno | Tokens (entrada + salida) |
+|---|---|
+| "Procesa el caso hn-agroexport-sula" (4 herramientas, 5 llamadas al modelo) | ≈ 25.200 |
+| "Sí, confirmo el envío" (1 herramienta, 2 llamadas al modelo) | ≈ 13.500 |
+
+El grueso es entrada: en cada vuelta del ciclo se reenvía el system prompt
++ conocimiento + definiciones de herramientas + historial con los
+resultados de las herramientas. Con precio de lista de Sonnet (USD 3 por
+millón de tokens de entrada y USD 15 por millón de salida; verificar la
+tarifa vigente en la página de precios de Anthropic), un caso completo
+cuesta del orden de **USD 0,08–0,11** y la confirmación otros ~USD 0,05. A
+8–12 solicitudes al mes, el costo mensual queda por debajo de **USD 2**.
+
+Optimizaciones si el volumen creciera: *prompt caching* del bloque fijo
+(system + conocimiento + herramientas), resumir los resultados grandes de
+herramientas antes de devolverlos al modelo (p. ej. no reenviar el mapeo
+completo) y ejecutar los pasos 1–4 en una sola herramienta "procesar_caso".
+El tope `TOPE_TOKENS_SESION` (200.000 por defecto) acota el gasto de una
+sesión a menos de ~USD 1.
 
 ## 5. Diseño del portal web (sección 7.4 del PRD)
 

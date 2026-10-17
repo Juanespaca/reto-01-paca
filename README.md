@@ -84,6 +84,7 @@ reto-01-paca/
 ├── Dockerfile                     # despliegue (Render u otra plataforma con Docker)
 ├── modulo/                        # bonus: agente empaquetado (ver PRD 9.4)
 ├── SOLUCION.md
+├── QA.md                          # informe de QA contra los requisitos del reto
 └── README.md
 ```
 
