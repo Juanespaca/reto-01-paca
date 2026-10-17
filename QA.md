@@ -1,160 +1,161 @@
 # QA — Reto 1: Agente "Registro como Proveedor"
 
-Fecha de la revisión: 17 de octubre de 2026 · Versión revisada: commit `main` desplegado en
-**https://reto-01-paca.onrender.com**
+Revisión: 17 de octubre de 2026 · Versión: rama `main` desplegada en
+**https://reto-01-paca.onrender.com** · Modelo: `claude-sonnet-5`
 
-## 1. Alcance y fuentes
+## 1. Alcance y método
 
-| Fuente | Uso en este QA |
-|---|---|
-| Instructivo del reto (PDF "Detalle instrucciones reto 1") | Entregables obligatorios (sección 2) |
-| Fixtures `fixtures/reto-01/` | Valores esperados por caso (sección 4) |
-| `src/knowledge/registro-proveedor.md` y `SOLUCION.md` | Reglas de negocio (identificadores, vigencias, datos bancarios, humano vs. agente) |
-| `PRD.md` | **No estaba en el paquete revisado.** Las historias (HU-1..HU-5) y reglas se verificaron según como las cita `SOLUCION.md`; falta un cruce línea por línea contra el PRD original (ver sección 9). |
+Se cruzó **cada requisito del `PRD.md` (v2.0, 2026-09-03)** y del instructivo
+del reto contra el código, las pruebas y la aplicación desplegada. Los 21
+archivos de `fixtures/reto-01/` se compararon byte a byte con los originales
+entregados por Periferia: son idénticos (no se modificaron).
 
 Métodos usados:
 
-- **Automático sin modelo:** `bun test` (52 pruebas), `bun run demo.ts` y `bunx tsc --noEmit`.
-- **Interfaz con modelo simulado:** navegador automatizado (Playwright) en escritorio 1440×900 y móvil 390×844, en modo claro y oscuro.
-- **En vivo con el modelo real:** sesiones manuales sobre el link público con `claude-sonnet-5`.
+- **Pruebas automáticas sin modelo:** `bun test` (65 pruebas), `bun run demo.ts` y `bunx tsc --noEmit`.
+- **Interfaz:** navegador automatizado en escritorio y móvil, en modo claro y oscuro, con un modelo simulado.
+- **En vivo con el modelo real:** sobre el link público, incluido el guion exacto de la sección 11 del PRD.
 
 Leyenda: ✅ cumple · ⚠️ cumple con observación · ❌ no cumple
 
-## 2. Entregables del instructivo
+## 2. Demo del PRD §11 (en vivo, modelo real)
 
-| # | Requisito | Evidencia | Estado |
+| Paso | Esperado según el PRD | Observado | Estado |
 |---|---|---|---|
-| E1 | Agente conversacional completo en TypeScript con Bun o Node 20+ | Bun 1.x, TypeScript estricto (`tsc --noEmit` sin errores) | ✅ |
-| E1.1 | System prompt separado en `agent/prompt.md` | Se carga en `agent.ts::cargarSystemPrompt()`; el conocimiento de negocio vive aparte en `src/knowledge/` | ✅ |
-| E1.2 | Herramientas tipadas con zod en `src/tools/proveedor.ts` | 5 herramientas con esquemas zod; se convierten a JSON Schema para el modelo | ✅ |
-| E1.3 | Lógica de backend separada | `src/server.ts` (HTTP), `src/agent.ts` (ciclo), `src/llm/` (adaptador de proveedor) | ✅ |
-| E1.4 | Front de chat que permite interactuar con el agente | `web/index.html`: chat, casos con un clic, pruebas rápidas | ✅ |
-| E1.5 | El front muestra las llamadas a herramientas | Tarjetas en vivo (streaming) con argumentos, resultado y estado; pipeline de 5 pasos | ✅ |
-| E1.6 | El front resalta las solicitudes de confirmación humana | Tarjeta amarilla con botones "Sí, confirmo el envío" / "Revisar antes"; el envío bloqueado se marca en rojo | ✅ |
-| E1.7 | Automatiza lectura → cruce con maestro → formulario Excel o PDF → paquete para firma | Ver sección 4 | ✅ |
-| E2 | `demo.ts` procesa los casos sin modelo de lenguaje | Corre los 4 casos llamando directo a las herramientas; no necesita clave | ✅ |
-| E2.1 | Robustez y determinismo | Limpia `out/` al inicio; las pruebas verifican que dos corridas den lo mismo; `FECHA_REFERENCIA` fija las vigencias | ✅ |
-| E3 | Link público funcional | https://reto-01-paca.onrender.com (Render, Docker) | ⚠️ Plan gratuito: tarda unos 50 s en despertar tras inactividad |
-| E4 | `SOLUCION.md`: arquitectura | Sección 2 | ✅ |
-| E4.1 | `SOLUCION.md`: ciclo del agente | Sección 3: 7 pasos, incluye eventos en vivo y conteo de tokens | ✅ |
-| E4.2 | `SOLUCION.md`: decisiones de diseño | Sección 6: 6 decisiones con la alternativa descartada | ✅ |
-| E4.3 | `SOLUCION.md`: análisis de costos del modelo | Sección 4, con tokens **medidos** en el despliegue real | ✅ |
-| E4.4 | `SOLUCION.md`: consideraciones de producción | Secciones 5 (portal), 8 (cobertura) y 10 (riesgos) | ✅ |
+| 1. Prompt de la demo en una sesión nueva | Resumen estructurado, herramientas visibles, ruta `out/ec-corp-andina/`, faltantes, estado `listo_para_firma` y una pregunta al cierre | 4 herramientas visibles en vivo (leer, mapear, generar, paquete). Resumen: 13 llenos, RUC por confirmar, "Número de contribuyente especial" faltante, ruta del PDF, "NO listo para firma", Cámara de Comercio vencida y certificado de cumplimiento tributario ausente. Cierra con pregunta | ✅ |
+| 2. "envía" | Solo procede tras una confirmación explícita | No llamó ninguna herramienta: resumió los pendientes y preguntó "¿Confirmas que quieres que envíe…?". La tarjeta de confirmación se resaltó en el front | ✅ |
+| 3. Confirmación ("Sí, confirmo el envío") | Produce solo `ENVIO-SIMULADO.md` | Una sola herramienta (`proveedor_simular_envio`). En `out/ec-corp-andina/` aparece únicamente `ENVIO-SIMULADO.md` como archivo nuevo | ✅ |
+| Caso negativo: "procésalo y envíalo ya" | No debe enviar sin confirmación en un turno aparte | El modelo intentó enviar y el backend lo bloqueó (tarjeta roja "bloqueado por el backend") | ✅ |
 
-## 3. Arquitectura y contrato de herramientas
+## 3. Historias de usuario (PRD §5)
 
-| ID | Verificación | Resultado |
+| Criterio | Evidencia | Estado |
 |---|---|---|
-| A1 | Toda herramienta devuelve un string JSON `{ok:true,data}` o `{ok:false,error}` y nunca lanza excepción | ✅ Prueba "todas las herramientas responden JSON string con ok booleano" |
-| A2 | Argumentos inválidos devuelven error, no rompen el ciclo | ✅ Validación zod en `ejecutarHerramienta` |
-| A3 | Tope de 25 iteraciones por turno | ✅ Probado con un modelo que llama herramientas sin parar: se detiene en 25 y avisa |
-| A4 | Tope de tokens por sesión (`TOPE_TOKENS_SESION`) | ✅ Corregido en este QA: antes el contador nunca se incrementaba (ver sección 8) |
-| A5 | La clave de API no aparece en el front, `/api/health` ni los logs | ✅ `/api/health` solo devuelve proveedor y modelo |
-| A6 | Proveedor de modelo intercambiable | ✅ Interfaz `AdaptadorLLM`; las pruebas usan adaptadores simulados sin tocar el ciclo |
-| A7 | Descarga de archivos sin salirse de `out/<caso>` | ✅ `../` y nombres de caso inválidos devuelven 400 o 404 |
+| **HU-1** Devuelve campos, país, formato y soportes | Prueba por caso contra `solicitud.json`, la plantilla y `soportes-exigidos.json` | ✅ |
+| **HU-1** Campo ambiguo ("Identificación tributaria") → `requiere_confirmacion` con el equivalente del país | Caso sintético en Colombia: se marca ambiguo y se propone NIT. RUC (EC, PA) y RTN (HN) se marcan como identificador extranjero | ✅ |
+| **HU-2** Tres estados: `lleno` con ruta, `faltante` o `requiere_confirmacion` | Cada campo cae en exactamente un estado; los llenos llevan `ruta` | ✅ |
+| **HU-2** Nunca inventa un valor | Prueba: cada valor lleno es idéntico al del maestro en su ruta. En vivo, el resumen coincide con las herramientas | ✅ |
+| **HU-2** Sinónimos del glosario resueltos automáticamente | "Nombre de la empresa", "Domicilio fiscal", "Nombre o razón social del proveedor", etc. | ✅ |
+| **HU-2** Confianza < 0.8 | El mapeo es exacto por glosario (confianza 1); no hay mapeo difuso. Lo que no está en el glosario queda faltante | ⚠️ Decisión documentada en SOLUCION §8 |
+| **HU-3 P0** `formulario.xlsx`: etiqueta y valor en la hoja y celda exactas | Prueba que relee el `.xlsx` (CO: 2 hojas, 17 celdas; HN: 11 celdas) | ✅ |
+| **HU-3 P1** `formulario.pdf` con todos los campos en orden | PDF válido; campos en el orden de `plantilla-campos.json`, obligatorios marcados con `*` | ✅ |
+| **HU-3 P2** Portal → "formato no soportado" + `valores-portal.md` | `{ formato: "portal", soportado: false, mensaje: "formato no soportado…" }` | ✅ |
+| **HU-4** `paquete/` con formulario, copias de los soportes exigidos que existan, `checklist.md` y `borrador-correo.md` | Prueba de archivos; también copia `valores-portal.md` en el caso portal; no copia soportes no pedidos (ISO 9001) | ✅ |
+| **HU-4** Soporte con `vigencia_hasta` anterior a la fecha de ejecución → vencido y bloquea | Cámara de Comercio (30-09-2026) y parafiscales (31-08-2026) vencidos | ✅ |
+| **HU-4** Resumen + pregunta explícita antes de cualquier envío; "enviar" solo escribe `ENVIO-SIMULADO.md` | Sección 2 de este informe | ✅ |
+| **HU-5** Plantilla corrupta, caso inexistente o formato no soportado: mensaje claro, sin traza, y el proceso continúa | Casos sintéticos: con plantilla corrupta igual se arma el paquete y el checklist; con solicitud corrupta el error es claro | ✅ |
+| **HU-5** Ninguna herramienta lanza; siempre `{ok,data}` o `{ok:false,error}` | Prueba sobre las 5 herramientas con entradas inválidas | ✅ |
 
-## 4. Historias de usuario por caso (valores esperados de los fixtures)
+Valores verificados por caso (al 15–17 de octubre de 2026):
 
-| Caso | País / ID tributario | Formato | Llenos | Por confirmar | Faltantes | Soportes con problema | Listo para firma* |
+| Caso | ID tributario | Formato | Llenos | Por confirmar | Faltantes | Soportes con problema | Listo |
 |---|---|---|---|---|---|---|---|
-| co-industrias-delta | CO / NIT | xlsx | 17 | 0 | 0 | Cámara de Comercio vencida | No |
-| ec-corp-andina | EC / RUC | pdf | 13 | 1 (RUC) | 1 (N.º contribuyente especial) | Cámara vencida; certificado de cumplimiento tributario ausente | No |
-| hn-agroexport-sula | HN / RTN | xlsx | 9 | 1 (RTN) | 1 (Referencias comerciales) | Cámara vencida; parafiscales vencidos | No |
-| pa-logistica-istmo | PA / RUC | portal | 8 | 1 (RUC) | 0 | Cámara vencida | No |
+| co-industrias-delta | NIT (lleno) | xlsx | 17 | 0 | 0 | Cámara de Comercio vencida | No |
+| ec-corp-andina | RUC | pdf | 13 | 1 | 1 | Cámara vencida; certificado de cumplimiento tributario ausente | No |
+| hn-agroexport-sula | RTN | xlsx | 9 | 1 | 1 | Cámara y parafiscales vencidos | No |
+| pa-logistica-istmo | RUC | portal | 8 | 1 | 0 | Cámara vencida | No |
 
-\* Evaluado al 15–17 de octubre de 2026. Al 15 de septiembre de 2026, CO y PA quedan listos para firma (cubierto por prueba).
+## 4. Arquitectura y contrato (PRD §6)
 
-| ID | Historia / criterio | Cómo se verificó | Estado |
-|---|---|---|---|
-| HU-1 | Leer la solicitud: país, formato, campos y soportes | Prueba por caso contra `solicitud.json` y `soportes-exigidos.json`; en vivo el agente lo llama primero | ✅ |
-| HU-2 | Mapear cada campo al maestro vía glosario | Cada campo cae en exactamente una categoría; conteos de la tabla | ✅ |
-| HU-2 / CA2 | Ningún valor inventado | Prueba: todo valor lleno es idéntico al del maestro en su ruta. En vivo el resumen del modelo coincidió con los datos de las herramientas | ✅ |
-| HU-2 | Campo sin fuente → faltante, no se completa a criterio | Contribuyente especial y Referencias comerciales quedan faltantes | ✅ |
-| HU-3 | Excel en las celdas de la plantilla | Prueba que relee el `.xlsx`: etiqueta y valor en cada celda indicada (CO y HN) | ✅ |
-| HU-3 | PDF | Archivo `%PDF-` válido con todos los campos y los obligatorios marcados con `*` | ✅ (PDF generado, no AcroForm del cliente; ver SOLUCION §8) |
-| HU-3 | Portal: valores para copiar | `valores-portal.md` y diseño de automatización en SOLUCION §5 | ✅ |
-| HU-4 | Paquete con formulario, soportes vigentes, checklist y borrador de correo | Prueba de archivos y checklist completo por caso | ✅ |
-| HU-4 | Soporte vencido o ausente bloquea `listo_para_firma` | Pruebas de los 4 casos y del caso que sí queda listo | ✅ |
-| HU-4 | Solo se copian los soportes vigentes | Prueba; corregido en este QA (antes quedaban copias de corridas anteriores) | ✅ |
-| HU-4 | Confirmación humana antes de enviar | Sección 6 | ✅ |
-| HU-5 | Errores claros, sin JSON crudo ni trazas al usuario | En vivo: el caso inexistente se explica en lenguaje natural; el front muestra mensajes amigables | ✅ |
-
-## 5. Reglas de negocio
-
-| ID | Regla | Evidencia | Estado |
-|---|---|---|---|
-| RN1 | NIT colombiano se llena directo | Prueba CO: NIT = maestro | ✅ |
-| RN1 | RUC (EC, PA) y RTN (HN) nunca se llenan en silencio: van a `requiere_confirmacion` con motivo y valor propuesto | Prueba parametrizada; en vivo el agente lo explica | ✅ |
-| RN2 | Datos bancarios solo si la plantilla los pide | Prueba: HN no tiene campos `banco.*`; EC sí los pide y sí se llenan | ✅ |
-| RN2 | Datos bancarios nunca en el borrador de correo | Prueba en los 4 borradores (número de cuenta y SWIFT) | ✅ |
-| RN | Vigencia de soportes | Inclusiva hasta el día de `vigencia_hasta`; fecha de referencia configurable | ✅ |
-| RN | Firmar y enviar son decisiones humanas | El agente nunca firma; el envío es simulado y exige confirmación | ✅ |
-
-## 6. Gate de confirmación humana (crítico)
-
-| ID | Escenario | Automático | En vivo (modelo real) | Estado |
-|---|---|---|---|---|
-| G1 | "Procesa el caso X" → resume y pregunta antes de enviar, sin enviar | ✅ | ✅ (ec-corp-andina, hn-agroexport-sula) | ✅ |
-| G2 | Confirmación en un mensaje aparte → envío simulado | ✅ | ✅ (con texto y con el botón "Sí, confirmo el envío") | ✅ |
-| G3 | "Procésalo y envíalo ya" en un solo mensaje → no envía | ✅ Modelo "desobediente" bloqueado por el backend | ✅ El modelo intentó enviar y el backend lo bloqueó | ✅ |
-| G4 | "Sí" sin que el agente haya preguntado → no envía | ✅ | — | ✅ |
-| G5 | `confirmado:false` → rechazado por la herramienta | ✅ | — | ✅ |
-| G6 | Envío de un caso sin paquete armado → rechazado | ✅ | — | ✅ |
-| G7 | Paquete "no listo para firma" | — | ✅ El agente advierte y pide confirmación explícita de enviar igual | ✅ |
-| G8 | La tarjeta de confirmación no aparece por error (p. ej. "¿necesitas algo más?" después de enviar) | ✅ | ✅ | ✅ Corregido en este QA |
-
-## 7. Requisitos no funcionales y front
-
-| ID | Verificación | Estado |
+| Requisito | Evidencia | Estado |
 |---|---|---|
-| NF1 | Arranque en un comando (`bun install && bun run dev`) y despliegue con Dockerfile | ✅ |
-| NF2 | Determinismo (`out/` limpio, `FECHA_REFERENCIA`, prueba de doble corrida) | ✅ |
-| NF3 | Costo acotado (25 iteraciones + tope de tokens) y medido | ✅ |
-| NF4 | Seguridad: clave solo en variable de entorno; rutas de archivos saneadas; mensajes ≤ 4000 caracteres | ✅ |
-| UI1 | Escritorio, tablet (paneles en cajón) y móvil 390 px sin scroll horizontal | ✅ |
-| UI2 | Modo claro y oscuro con contraste legible | ✅ |
-| UI3 | Sin errores de consola durante los flujos | ✅ |
-| UI4 | Archivos generados descargables y con vista previa (md, txt, pdf) | ✅ |
-| UI5 | Estados de carga: servidor despertando, "pensando", herramienta en curso | ✅ |
-| UI6 | Uso de tokens de la sesión visible | ✅ |
+| Front: historial, entrada e indicador de "pensando" | `web/index.html` | ✅ |
+| Front: cada llamada a herramienta con nombre, argumentos y resultado resumido | Tarjetas expandibles en vivo (streaming NDJSON) | ✅ |
+| Front: resalta cuando el agente pide confirmación | Tarjeta con botones; el envío bloqueado se marca en rojo | ✅ |
+| Backend: API del chat, ciclo con tope de iteraciones, sesión en memoria | `src/server.ts` y `src/agent.ts` | ✅ |
+| Herramientas zod separadas del servidor e importables desde `demo.ts` | `src/tools/proveedor.ts` | ✅ |
+| Adaptador LLM propio; cambiar de proveedor no toca el ciclo | Interfaz `AdaptadorLLM`; las pruebas usan adaptadores simulados | ✅ |
+| System prompt en `agent/prompt.md` | Se carga desde el archivo | ✅ |
+| Contrato §6.2: `description`, `args` zod con `.describe()`, `execute` devuelve string, nunca lanza; el backend valida antes de ejecutar | Las 5 herramientas | ✅ |
+| Nombres `proveedor_<export>` y salidas de la tabla §6.2 | `leer_solicitud`, `mapear_campos`, `generar_formulario`, `armar_paquete` y `simular_envio` con los campos pedidos | ✅ |
+| Separación comportamiento / conocimiento / ejecución (§6.5) | `agent/prompt.md` / `src/knowledge/` / `src/tools/` | ✅ |
 
-## 8. Hallazgos corregidos durante el QA
+## 5. Reglas del ciclo del agente (PRD §6.3)
 
-| # | Severidad | Hallazgo | Corrección | Prueba |
-|---|---|---|---|---|
-| 1 | Alta | El "segundo gate" dependía de `confirmado`, un valor que pone el mismo modelo, así que "procésalo y envíalo ya" enviaba | Gate en el backend: exige pregunta previa del agente y confirmación explícita en un turno aparte | G3, G4 |
-| 2 | Alta | El tope de tokens por sesión nunca se activaba (el contador no se sumaba) | `correrTurno` suma el uso y el servidor lo acumula | "correrTurno suma los tokens…" |
-| 3 | Media | Al rearmar el paquete quedaban copias de soportes de corridas anteriores (un soporte ya vencido seguía en la carpeta) | El paquete se rearma desde cero | "solo se copian…" |
-| 4 | Media | `simular_envio` aceptaba casos inexistentes y rutas `../` (escribía fuera de `out/`) | Validación del nombre de caso y paquete previo obligatorio | HU-5, G6 |
-| 5 | Baja | Detección de confirmación fallaba con tildes ("envíe") y daba falsos positivos | Solo cuenta preguntas `¿…?` sobre envío o firma; se apaga tras un envío | G8 |
-| 6 | Baja | Error crudo del proveedor llegaba al front | Mensaje amigable; el detalle va al log del servidor | — |
-| 7 | Baja | El README decía `claude-sonnet-4-5` y el código usa `claude-sonnet-5` | Docs alineadas | — |
-| 8 | Baja | Costo subestimado en SOLUCION (4–6K tokens por caso; lo medido son ~25K) | Sección 4 reescrita con datos medidos | — |
+| Regla | Evidencia | Estado |
+|---|---|---|
+| **CA1** Tope de iteraciones por turno; al alcanzarlo responde con lo que tiene | 25 por defecto (`TOPE_ITERACIONES`); prueba con un modelo que nunca termina | ✅ |
+| **CA2** El modelo no afirma valores que no salieron de una herramienta | Prompt + herramientas como única fuente de datos; el modelo recibe la fecha de hoy para no "corregir" vigencias | ✅ |
+| **CA3** Confirmación humana: pregunta explícita, procede solo con confirmación en el turno siguiente, el front lo resalta | Triple gate: prompt, herramienta y backend. Pruebas G1–G6 y demo §11 | ✅ |
+| **CA4** Toda llamada visible en el chat y en `out/log.jsonl` | Log global `out/log.jsonl` (incluye intentos bloqueados) + tarjetas en el chat | ✅ |
+| **CA5** Error de herramienta o del proveedor → mensaje claro y la sesión sigue | Timeout (`LLM_TIMEOUT_MS`), 401, 429 y 5xx con mensajes en español; la sesión conserva su historial | ✅ |
 
-## 9. Observaciones abiertas (para tener listas en la defensa)
+## 6. Reglas de negocio (PRD §7.3)
 
-1. **PRD.md no revisado.** Falta cruzar línea por línea las historias, criterios de aceptación (CA) y reglas (RN) del PRD original, en especial la sección 7.4 (portal) y la 9.4 (módulo bonus en `modulo/`).
-2. **Fecha de evaluación de vigencias.** Hoy los 4 paquetes salen "no listos" porque la Cámara de Comercio venció el 30-09-2026. Es correcto contra la fecha actual, pero conviene explicarlo; con `FECHA_REFERENCIA=2026-09-15`, CO y PA quedan listos.
-3. **Sesiones en memoria + plan gratuito.** Si Render apaga el servidor por inactividad, se pierden la conversación y `out/`. Es aceptable para la demo (documentado en SOLUCION §6.3): basta recargar y empezar una sesión nueva.
-4. **`out/` es compartido entre sesiones.** Dos personas procesando el mismo caso a la vez sobrescriben los mismos archivos. En producción iría separado por sesión o solicitud.
-5. **El borrador de correo dice "firmado por el representante legal"** aunque el paquete no esté listo. Es un borrador para después de la firma; podría condicionarse al estado del paquete.
-6. **"País" se llena con el código ISO `CO`**, no con "Colombia" (supuesto documentado en SOLUCION §7).
-7. **Seguridad de la clave.** La API key se compartió en un chat durante el despliegue: hay que rotarla en console.anthropic.com y actualizarla en Render (Environment).
+| Regla | Evidencia | Estado |
+|---|---|---|
+| **RN1** CO→NIT, EC/PE/PA→RUC, HN→RTN; el campo extranjero se llena con el NIT y se marca con la nota "identificador extranjero" | Pruebas EC, PA y HN; el motivo contiene "identificador extranjero" | ✅ |
+| **RN2** Datos bancarios solo si la plantilla los pide; nunca en `borrador-correo.md` | HN no los pide (no aparecen); CO y EC sí. Ningún borrador contiene número de cuenta ni SWIFT | ✅ |
+| **RN3** Vencido o ausente bloquea; un campo faltante no bloquea pero aparece en el checklist | `checklist.md` tiene la sección "Campos del formulario pendientes"; HN al 15-08-2026 queda listo con 1 faltante | ✅ |
+| **RN4** Ninguna acción externa sin confirmación explícita en el turno inmediatamente anterior | Gate en el backend; prueba "sí sin pregunta previa → bloqueado" | ✅ |
+| **RN5** `out/<caso>/log.jsonl` con `{ ts, herramienta, ok, resumen }` | Prueba de claves exactas | ✅ |
 
-## 10. Cómo reproducir
+## 7. API mínima (PRD §6.4)
+
+| Ruta | Estado |
+|---|---|
+| `POST /api/chat` → `{ reply, toolCalls[], needsConfirmation }` (+ `sessionId`, `uso`) | ✅ |
+| `POST /api/chat/stream` (stream de eventos, opcional en el PRD) | ✅ |
+| `GET /api/sessions/:id` | ✅ |
+| `GET /api/health` → `{ ok, provider, model }` sin claves | ✅ |
+| Documentada en el README | ✅ |
+
+## 8. Requisitos no funcionales (PRD §8)
+
+| Categoría | Evidencia | Estado |
+|---|---|---|
+| Arranque en un comando | `bun install && bun run dev`; también `Dockerfile` | ✅ |
+| Determinismo de `demo.ts` | Limpia `out/`; prueba de doble corrida; `FECHA_REFERENCIA` fija las vigencias | ✅ |
+| Seguridad: clave solo en el entorno del backend | No está en el repo (verificado), ni en el front, `/api/health`, los logs o los errores (prueba). Las herramientas no ejecutan shell. Datos 100 % ficticios | ✅ |
+| Costo: tope de iteraciones y de tokens configurables | `TOPE_ITERACIONES` y `TOPE_TOKENS_SESION` (el contador de tokens se corrigió en este QA); consumo visible en el front | ✅ |
+| Robustez: errores tipados, timeout al LLM, un caso malo no impide el siguiente | Pruebas HU-5, CA5 y casos sintéticos | ✅ |
+| Legibilidad: TypeScript sin `any` | `tsc` estricto sin errores y 0 apariciones de `any` en `src/`, `tests/` y `demo.ts` | ✅ |
+| Dependencias justificadas; zod obligatorio | Tabla en SOLUCION §6 | ✅ |
+
+## 9. Entregables (PRD §9 e instructivo)
+
+| Entregable | Estado |
+|---|---|
+| `SOLUCION.md` con las 10 secciones obligatorias (§9.1), incluido el uso de IA declarado | ✅ (más una sección 11 de verificación) |
+| `README.md`: un comando, variables, `demo.ts`, link y acceso (público, sin clave) | ✅ |
+| Link público activo (§9.3) | ⚠️ En el plan gratuito de Render tarda unos 50 s en despertar tras inactividad |
+| Bonus §9.4: `modulo/agent.md` (frontmatter `description`, `mode: primary`, `permission {edit: deny, bash: deny}`), `tools/proveedor.ts` y `SKILL.md` (`name`, `description`) | ✅ Pruebas que verifican que las tres piezas son idénticas a las de la aplicación |
+| §9.5: repo Git con historial, sin `node_modules/`, `out/` ni `.env` | ✅ |
+
+## 10. Hallazgos corregidos durante el QA
+
+| # | Severidad | Hallazgo | Corrección |
+|---|---|---|---|
+| 1 | Alta | El gate de confirmación dependía de `confirmado`, un valor que pone el mismo modelo: "procésalo y envíalo ya" enviaba | Gate en el backend (pregunta previa + confirmación explícita en un turno aparte) |
+| 2 | Alta | El tope de tokens por sesión nunca se activaba | El ciclo suma el uso y el servidor lo acumula |
+| 3 | Alta | El modelo no conocía la fecha y en vivo "dudaba" de las vigencias ("parece futura pero marcada vencida") | Se le inyecta la fecha de hoy y el prompt le indica no cuestionar las vigencias |
+| 4 | Media | HU-1: "Identificación tributaria" en Colombia se llenaba sin marcarse como ambigua | Las etiquetas genéricas van siempre a `requiere_confirmacion` con el equivalente del país |
+| 5 | Media | HU-4: el paquete no copiaba los soportes vencidos; el caso portal no incluía `valores-portal.md` | Se copian todos los exigidos que existen y el formulario de cualquier formato |
+| 6 | Media | RN3: los campos faltantes no aparecían en `checklist.md` | Sección "Campos del formulario pendientes" en el checklist y en la respuesta |
+| 7 | Media | HU-5: una plantilla corrupta tumbaba todo el caso | Advertencia clara; el paquete y el checklist se generan igual |
+| 8 | Media | CA4: no existía `out/log.jsonl` global | Log global con el caso; incluye envíos bloqueados |
+| 9 | Media | §8: sin timeout al proveedor LLM; errores genéricos | Timeout configurable y mensajes por tipo de error |
+| 10 | Media | El paquete conservaba archivos de corridas anteriores | Se rearma desde cero |
+| 11 | Media | `simular_envio` aceptaba casos inexistentes y rutas `../` | Validación del nombre del caso y paquete previo obligatorio |
+| 12 | Baja | `any` en el adaptador y en las pruebas; tope de iteraciones no configurable | Tipos explícitos; `TOPE_ITERACIONES` |
+| 13 | Baja | Detección de confirmación fallaba con tildes y daba falsos positivos | Solo cuentan preguntas `¿…?` sobre envío o firma |
+| 14 | Baja | Costo subestimado en SOLUCION | Reescrito con tokens medidos (~25K por caso) |
+
+## 11. Observaciones abiertas (para la defensa)
+
+1. **Vigencias contra la fecha de hoy.** Los 4 paquetes salen "no listos" porque la Cámara de Comercio venció el 30-09-2026. Es lo que pide HU-4; con `FECHA_REFERENCIA=2026-09-15`, CO y PA quedan listos.
+2. **Plan gratuito de Render.** El servidor se duerme por inactividad, tarda unos 50 s en despertar y pierde las sesiones en memoria y `out/`. Hay que abrir el link antes de la defensa.
+3. **`out/` es compartido entre sesiones**: el PRD excluye multiusuario (§3.2). En producción iría separado por solicitud.
+4. **HU-2 "confianza < 0.8"**: no hay mapeo difuso. Todo lo que no está en el glosario queda faltante, la opción más conservadora.
+5. **"País" se llena con `CO`**, el código ISO del maestro (supuesto documentado).
+
+## 12. Cómo reproducir
 
 ```bash
 bun install
-bun test                      # 52 pruebas
-bunx tsc --noEmit             # tipos
-bun run demo.ts               # 4 casos sin modelo
-FECHA_REFERENCIA=2026-09-15 bun run demo.ts   # vigencias a una fecha fija
-cp .env.example .env && bun run dev            # http://localhost:3000 (requiere ANTHROPIC_API_KEY)
+bun test                       # 65 pruebas
+bunx tsc --noEmit              # tipos
+bun run demo.ts                # 4 casos sin modelo
+FECHA_REFERENCIA=2026-09-15 bun run demo.ts
+cp .env.example .env && bun run dev    # requiere ANTHROPIC_API_KEY
 ```
-
-Guion de prueba en vivo (link público):
-
-1. Clic en **Procesar** de *Corporación Andina* → ver el pipeline, las 4 herramientas y el panel de resultado.
-2. **Sí, confirmo el envío** → envío simulado y `ENVIO-SIMULADO.md` en archivos generados.
-3. **Nueva sesión** → prueba rápida *"procésalo y envíalo ya"* → la tarjeta del envío aparece en rojo como "bloqueado por el backend".
-4. Prueba rápida *caso inexistente* → el error se explica en lenguaje claro.
